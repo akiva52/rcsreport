@@ -76,7 +76,7 @@ export default function App() {
     const file = e.target.files[0]; if (!file) return;
     setExcelFileName(file.name);
     try {
-      const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm");
+      const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs");
       const ab = await readAsArrayBuffer(file);
       const wb = XLSX.read(ab);
       const ws = wb.Sheets[wb.SheetNames[0]];

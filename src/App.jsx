@@ -499,16 +499,16 @@ function App() {
       setGenStatus("Adding footers...");
       const font = await finalDoc.embedFont(StandardFonts.Helvetica);
       const pages = finalDoc.getPages();
-      const nonCover = pages.length - coverPageNums.size;
-      let pageNum = 0;
+      const total = pages.length; // cover IS included in total
+      let pageNum = 1; // increments to 2 before first non-cover page
       pages.forEach((pg, i) => {
-        if (coverPageNums.has(i)) return;
+        if (coverPageNums.has(i)) return; // no footer on cover
         pageNum++;
         const { width, height } = pg.getSize();
         const mPt = M*2.835;
         pg.drawLine({ start:{x:mPt,y:22}, end:{x:width-mPt,y:22}, thickness:0.3, color:rgb(0.75,0.74,0.72) });
         const fs = 7;
-        const pn = `Page ${pageNum} of ${nonCover}`;
+        const pn = `Page ${pageNum} of ${total}`;
         const co = "Roselle Creative Solutions";
         pg.drawText(pn, { x:mPt, y:14, size:fs, font, color:rgb(0.55,0.54,0.52) });
         pg.drawText(co, { x:width-mPt-font.widthOfTextAtSize(co,fs), y:14, size:fs, font, color:rgb(0.55,0.54,0.52) });

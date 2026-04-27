@@ -271,8 +271,8 @@ export default function App() {
           doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W / 2, ftY + 22, { align: "center" });
 
         } else if (sec.id === "notes") {
-          const vg = genNotes.filter(n => n.trim());
-          const ve = eqNotes.filter(n => n.trim());
+          const vg = genNotes.filter(n => (n.text || n).toString().trim());
+          const ve = eqNotes.filter(n => (n.text || n).toString().trim());
           if (!vg.length && !ve.length) continue;
           setGenStatus("Building notes page...");
           doc.addPage();
@@ -446,7 +446,7 @@ export default function App() {
 
   const canNext = () => step === 0 ? info.propertyName.trim() && info.address.trim() : true;
   const secDesc = (sec) => {
-    if (sec.id === "notes") return `${genNotes.filter(n=>n.trim()).length} general · ${eqNotes.filter(n=>n.trim()).length} equipment notes`;
+    if (sec.id === "notes") return notesDocName ? `${notesDocName} · ${genNotes.length} lines` : "Not uploaded";
     if (sec.id === "excel") return excelData ? `${excelFileName} · ${excelData.rows.length} rows` : "Not uploaded";
     if (sec.id === "photos") return pptSlides.length ? `${pptSlides.length} photos · ${Math.ceil(pptSlides.length/2)} pages` : "Not uploaded";
     return sec.desc || "";

@@ -1,59 +1,53 @@
 import { useState, useRef, useCallback } from "react";
 import React from "react";
 
+// ── Error boundary ──────────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(err) { return { error: err }; }
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
   render() {
-    if (this.state.error) return (
-      <div style={{ padding: 32, fontFamily: "monospace", background: "#fff0f0", border: "2px solid red", borderRadius: 8, margin: 16 }}>
-        <h2 style={{ color: "red", margin: "0 0 12px" }}>App Error — send this to Akiva</h2>
-        <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{this.state.error.toString()}{"\n\n"}{this.state.error.stack}</pre>
+    if (this.state.err) return (
+      <div style={{ padding: 24, fontFamily: "monospace", background: "#fff0f0", border: "2px solid red", borderRadius: 8, margin: 16 }}>
+        <h3 style={{ color: "red", margin: "0 0 8px" }}>Error — screenshot this</h3>
+        <pre style={{ fontSize: 11, whiteSpace: "pre-wrap" }}>{this.state.err.toString()}</pre>
       </div>
     );
     return this.props.children;
   }
 }
 
-
-const loadScript = (src) => new Promise((resolve, reject) => {
-  if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-  const s = document.createElement("script");
-  s.src = src; s.onload = resolve; s.onerror = reject;
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const readAsDataURL = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+const readAsArrayBuffer = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsArrayBuffer(f); });
+const loadScript = src => new Promise((res, rej) => {
+  if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+  const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej;
   document.head.appendChild(s);
 });
 
-const loadLibs = async () => {
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js");
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
-};
-
-const readAsDataURL = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
-const readAsArrayBuffer = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsArrayBuffer(file); });
-
+const DOLLAR_COLS = new Set([2, 3, 4, 5, 6]); // C,D,E,F,G — Cost, Total, Quote, New cost, Variance
 const STEPS = ["Property info", "Notes", "Upload files", "Extra PDFs", "Arrange order", "Generate PDF"];
 
 const inp = { width: "100%", padding: "9px 12px", border: "0.5px solid var(--color-border-secondary)", borderRadius: "var(--border-radius-md)", fontSize: "14px", color: "var(--color-text-primary)", background: "var(--color-background-primary)", boxSizing: "border-box", fontFamily: "var(--font-sans)", outline: "none" };
 const lbl = { display: "block", fontSize: "12px", fontWeight: "500", color: "var(--color-text-secondary)", marginBottom: "6px" };
 
-const DropZone = ({ icon, text, onClick, onDrop }) => {
+// ── DropZone ─────────────────────────────────────────────────────────────────
+function DropZone({ icon, text, onClick, onDrop }) {
   const [over, setOver] = useState(false);
   return (
-    <div
-      onClick={onClick}
+    <div onClick={onClick}
       onDragOver={e => { e.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
-      onDrop={e => { e.preventDefault(); setOver(false); if (onDrop) onDrop(e.dataTransfer.files); }}
+      onDrop={e => { e.preventDefault(); setOver(false); onDrop && onDrop(e.dataTransfer.files); }}
       style={{ padding: "28px", border: `1px dashed ${over ? "#185FA5" : "var(--color-border-secondary)"}`, borderRadius: 10, cursor: "pointer", textAlign: "center", background: over ? "var(--color-background-info)" : "var(--color-background-secondary)", transition: "all 0.15s" }}>
       <div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>
-      <p style={{ fontSize: 13, margin: 0, color: "var(--color-text-secondary)" }}>{text}</p>
-      <p style={{ fontSize: 11, margin: "6px 0 0", color: "var(--color-text-tertiary)" }}>or drag &amp; drop here</p>
+      <p style={{ fontSize: 13, margin: "0 0 4px", color: "var(--color-text-secondary)" }}>{text}</p>
+      <p style={{ fontSize: 11, margin: 0, color: "var(--color-text-tertiary)" }}>or drag & drop here</p>
     </div>
   );
-};
+}
 
+// ── Main App ─────────────────────────────────────────────────────────────────
 function App() {
   const [step, setStep] = useState(0);
   const [logo, setLogo] = useState(null);
@@ -61,20 +55,18 @@ function App() {
     propertyName: "", address: "",
     date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
   });
-  const [genNotes, setGenNotes] = useState([]);
-  const [eqNotes, setEqNotes] = useState([]);
   const [notesDocName, setNotesDocName] = useState("");
-
-  const [excelData, setExcelData] = useState(null);
+  const [noteLines, setNoteLines] = useState([]); // [{text, allBold, segments:[{text,bold}]}]
+  const [excelData, setExcelData] = useState(null);   // {rows, dollarCols, sectionRows}
   const [excelFileName, setExcelFileName] = useState("");
-  const [pptSlides, setPptSlides] = useState([]);
+  const [pptSlides, setPptSlides] = useState([]);     // [{name}] — metadata only
   const [pptFileName, setPptFileName] = useState("");
-  const [extraPdfs, setExtraPdfs] = useState([]);
+  const [extraPdfs, setExtraPdfs] = useState([]);     // [{id, name}]
   const [sections, setSections] = useState([
-    { id: "cover",  label: "Cover page",                   icon: "📄", color: "#3a3937", desc: "Auto-generated · 1 page" },
-    { id: "notes",  label: "Clarifications & Notes",        icon: "📝", color: "#185FA5", desc: "" },
-    { id: "excel",  label: "Reserve Schedule (Excel)",      icon: "📊", color: "#639922", desc: "Not uploaded yet" },
-    { id: "photos", label: "Product Photos (PowerPoint)",   icon: "🖼️", color: "#854F0B", desc: "Not uploaded yet" },
+    { id: "cover",  label: "Cover page",                  icon: "📄", color: "#3a3937" },
+    { id: "notes",  label: "Clarifications & Notes",       icon: "📝", color: "#185FA5" },
+    { id: "excel",  label: "Reserve Schedule (Excel)",     icon: "📊", color: "#639922" },
+    { id: "photos", label: "Product Photos (PowerPoint)",  icon: "🖼️", color: "#854F0B" },
   ]);
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
@@ -82,50 +74,55 @@ function App() {
   const [genStatus, setGenStatus] = useState("");
   const [done, setDone] = useState(false);
 
-  const logoRef = useRef(); const excelRef = useRef();
-  const pptRef = useRef(); const pdfRef = useRef(); const wordRef = useRef();
-  const pdfDataRef = useRef({}); // store binary PDF data outside React state
-  const slidesDataRef = useRef([]); // store slide images outside React state
+  // Binary data lives in refs — never in React state
+  const logoRef       = useRef();
+  const excelRef      = useRef();
+  const pptRef        = useRef();
+  const pdfRef        = useRef();
+  const wordRef       = useRef();
+  const slidesRef     = useRef([]); // [{dataUrl, name}]
+  const pdfBytesRef   = useRef({}); // id → ArrayBuffer
 
-  const handleLogo = useCallback(async (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    setLogo(await readAsDataURL(file));
+  // ── File handlers ─────────────────────────────────────────────────────────
+  const handleLogo = useCallback(async e => {
+    const f = e.target.files[0]; if (!f) return;
+    setLogo(await readAsDataURL(f));
   }, []);
 
-  const handleWordDoc = useCallback(async (file) => {
+  const handleWordDoc = useCallback(async file => {
     if (!file) return;
     setNotesDocName(file.name);
     try {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
       const ab = await readAsArrayBuffer(file);
       const result = await window.mammoth.convertToHtml({ arrayBuffer: ab });
-      const parser = new DOMParser();
-      const htmlDoc = parser.parseFromString(result.value, "text/html");
+      const dom = new DOMParser().parseFromString(result.value, "text/html");
       const lines = [];
-      htmlDoc.body.querySelectorAll("p, h1, h2, h3, h4").forEach(node => {
+      dom.body.querySelectorAll("p,h1,h2,h3,h4,h5").forEach(node => {
         const text = node.textContent?.trim();
         if (!text) return;
-        const strongs = node.querySelectorAll("strong");
-        const totalStrongLen = [...strongs].reduce((s, el) => s + el.textContent.length, 0);
-        const allBold = totalStrongLen >= text.length * 0.9;
-        // Build segments: array of {text, bold}
+        const strongs = [...node.querySelectorAll("strong")];
+        const boldLen = strongs.reduce((s, el) => s + el.textContent.length, 0);
+        const allBold = boldLen >= text.replace(/\s+/g, "").length * 0.85;
         const segments = [];
         node.childNodes.forEach(child => {
           const t = child.textContent;
           if (!t) return;
-          const b = child.nodeName === "STRONG" || (child.parentNode?.nodeName === "STRONG");
-          segments.push({ text: t, bold: b });
+          const bold = child.nodeName === "STRONG" || child.parentNode?.nodeName === "STRONG";
+          if (segments.length && segments[segments.length - 1].bold === bold) {
+            segments[segments.length - 1].text += t;
+          } else {
+            segments.push({ text: t, bold });
+          }
         });
         lines.push({ text, allBold, segments });
       });
-      setGenNotes(lines);
+      setNoteLines(lines);
       setSections(p => p.map(s => s.id === "notes" ? { ...s, desc: `${file.name} · ${lines.length} lines` } : s));
-    } catch (err) {
-      alert("Could not read Word doc: " + err.message);
-    }
+    } catch (err) { alert("Could not read Word doc: " + err.message); }
   }, []);
 
-  const handleExcel = useCallback(async (e) => {
+  const handleExcel = useCallback(async e => {
     const file = e.target.files[0]; if (!file) return;
     setExcelFileName(file.name);
     try {
@@ -133,70 +130,154 @@ function App() {
       const ab = await readAsArrayBuffer(file);
       const wb = XLSX.read(ab);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }).filter(r => r.some(c => c !== ""));
-      setExcelData({ rows });
+      const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+      // Detect dollar-formatted columns from actual cell formats
+      const dollarCols = new Set();
+      for (const key of Object.keys(ws)) {
+        if (key.startsWith("!")) continue;
+        const cell = ws[key];
+        if (cell?.z && cell.z.includes("$")) {
+          const col = key.replace(/[0-9]/g, "");
+          const colIdx = col.split("").reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1;
+          dollarCols.add(colIdx);
+        }
+      }
+
+      // Detect section header rows
+      const sectionRows = new Set();
+      rawRows.slice(1).forEach((row, i) => {
+        const nonEmpty = row.filter(c => c !== null && c !== undefined && c !== "");
+        if (nonEmpty.length === 1 && row[0]) sectionRows.add(i);
+      });
+
+      // Format cells
+      const rows = rawRows.map((row, ri) => row.map((c, ci) => {
+        if (c === null || c === undefined || c === "") return "";
+        if (typeof c === "number") {
+          if (dollarCols.has(ci)) return `$${c.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          return c.toLocaleString("en-US");
+        }
+        return String(c);
+      }));
+
+      setExcelData({ rows, dollarCols, sectionRows });
       setSections(p => p.map(s => s.id === "excel" ? { ...s, desc: `${file.name} · ${rows.length} rows` } : s));
     } catch (err) { alert("Could not read Excel: " + err.message); }
   }, []);
 
-  const handlePPT = useCallback(async (e) => {
+  const handlePPT = useCallback(async e => {
     const file = e.target.files[0]; if (!file) return;
     setPptFileName(file.name);
     try {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
       const ab = await readAsArrayBuffer(file);
       const zip = await window.JSZip.loadAsync(ab);
-      const mediaFiles = Object.keys(zip.files)
-        .filter(f => f.startsWith("ppt/media/") && /\.(png|jpg|jpeg)$/i.test(f))
-        .sort();
-      const slides = await Promise.all(mediaFiles.map(async path => {
-        const blob = await zip.files[path].async("blob");
-        return { dataUrl: await readAsDataURL(blob), name: path.split("/").pop() };
-      }));
-      slidesDataRef.current = slides; // store images in ref
-      setPptSlides(slides.map(s => ({ name: s.name }))); // only metadata in state
-      setSections(p => p.map(s => s.id === "photos" ? { ...s, desc: `${slides.length} photos · ${Math.ceil(slides.length / 2)} pages` } : s));
+      // Get slide XML files to determine correct order
+      const slideXmls = Object.keys(zip.files)
+        .filter(f => f.match(/^ppt\/slides\/slide[0-9]+\.xml$/))
+        .sort((a, b) => {
+          const na = parseInt(a.match(/slide([0-9]+)/)?.[1] || 0);
+          const nb = parseInt(b.match(/slide([0-9]+)/)?.[1] || 0);
+          return na - nb;
+        });
+
+      // For each slide XML, find its image
+      const slides = [];
+      for (const slideXml of slideXmls) {
+        const slideNum = slideXml.match(/slide([0-9]+)/)?.[1];
+        // Look for the corresponding image in media
+        const mediaFiles = Object.keys(zip.files)
+          .filter(f => f.startsWith("ppt/media/") && /\.(png|jpg|jpeg)$/i.test(f))
+          .sort();
+
+        // Try to find image by slide relationship
+        const relsPath = slideXml.replace("slides/slide", "slides/_rels/slide").replace(".xml", ".xml.rels");
+        let imageFile = null;
+        if (zip.files[relsPath]) {
+          const relsXml = await zip.files[relsPath].async("string");
+          const match = relsXml.match(/Target="\.\.\/media\/([^"]+)"/);
+          if (match) imageFile = `ppt/media/${match[1]}`;
+        }
+        if (!imageFile) continue;
+        if (!zip.files[imageFile]) continue;
+        const blob = await zip.files[imageFile].async("blob");
+        const dataUrl = await readAsDataURL(blob);
+        slides.push({ name: imageFile.split("/").pop(), dataUrl });
+      }
+
+      // Fallback: if relationship parsing got nothing, just use all media in order
+      if (slides.length === 0) {
+        const mediaFiles = Object.keys(zip.files)
+          .filter(f => f.startsWith("ppt/media/") && /\.(png|jpg|jpeg)$/i.test(f))
+          .sort((a, b) => {
+            const na = parseInt(a.match(/(\d+)/)?.[1] || 0);
+            const nb = parseInt(b.match(/(\d+)/)?.[1] || 0);
+            return na - nb;
+          });
+        for (const path of mediaFiles) {
+          const blob = await zip.files[path].async("blob");
+          const dataUrl = await readAsDataURL(blob);
+          slides.push({ name: path.split("/").pop(), dataUrl });
+        }
+      }
+
+      slidesRef.current = slides;
+      setPptSlides(slides.map(s => ({ name: s.name })));
+      setSections(p => p.map(s => s.id === "photos" ? { ...s, desc: `${file.name} · ${slides.length} photos` } : s));
     } catch (err) { alert("Could not read PowerPoint: " + err.message); }
   }, []);
 
-  const handleExtraPdfs = useCallback(async (files) => {
-    const arr = Array.from(files).filter(f => f.name.endsWith(".pdf"));
-    const loaded = await Promise.all(arr.map(async f => {
+  const handleExtraPdfs = useCallback(async files => {
+    const arr = Array.from(files).filter(f => f.name.toLowerCase().endsWith(".pdf"));
+    for (const f of arr) {
       const id = "pdf_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-      const ab = await readAsArrayBuffer(f);
-      pdfDataRef.current[id] = ab; // store binary in ref, not state
-      return { id, name: f.name };
-    }));
-    setExtraPdfs(p => [...p, ...loaded]);
-    setSections(p => [...p, ...loaded.map(f => ({ id: f.id, label: f.name, icon: "📎", color: "#C04B00", desc: "Extra PDF", isPdf: true }))]);
+      pdfBytesRef.current[id] = await readAsArrayBuffer(f);
+      setExtraPdfs(p => [...p, { id, name: f.name }]);
+      setSections(p => [...p, { id, label: f.name, icon: "📎", color: "#C04B00", desc: "Extra PDF", isPdf: true }]);
+    }
   }, []);
 
-  const removeExtraPdf = (id) => {
-    delete pdfDataRef.current[id];
+  const removeExtraPdf = id => {
+    delete pdfBytesRef.current[id];
     setExtraPdfs(p => p.filter(f => f.id !== id));
     setSections(p => p.filter(s => s.id !== id));
   };
 
-  // Drag and drop
+  // ── Drag to reorder ───────────────────────────────────────────────────────
   const onDragStart = i => setDragIdx(i);
   const onDragOver = (e, i) => { e.preventDefault(); setDragOverIdx(i); };
   const onDrop = i => {
     if (dragIdx === null || dragIdx === i) { setDragIdx(null); setDragOverIdx(null); return; }
-    const next = [...sections]; const [moved] = next.splice(dragIdx, 1); next.splice(i, 0, moved);
+    const next = [...sections]; const [m] = next.splice(dragIdx, 1); next.splice(i, 0, m);
     setSections(next); setDragIdx(null); setDragOverIdx(null);
   };
 
+  // ── PDF Generation ────────────────────────────────────────────────────────
   const generatePDF = useCallback(async () => {
     setGenerating(true); setDone(false); setGenStatus("Loading libraries...");
     try {
-      await loadLibs();
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js");
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
+
       const { jsPDF } = window.jspdf;
       const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
-
       const doc = new jsPDF({ unit: "mm", format: "letter" });
-      const W = doc.internal.pageSize.getWidth();
-      const H = doc.internal.pageSize.getHeight();
-      const M = 18; const CW = W - M * 2;
+      const W = doc.internal.pageSize.getWidth();   // 215.9mm
+      const H = doc.internal.pageSize.getHeight();  // 279.4mm
+      const M = 14; const CW = W - M * 2;
+
+      const DARK = [89, 83, 85];
+      const WHITE = [241, 239, 232];
+      const LGRAY = [200, 198, 192];
+
+      const darkHeader = (title, fontSize = 11) => {
+        doc.setFillColor(...DARK); doc.rect(0, 0, W, 20, "F");
+        doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold"); doc.setFontSize(fontSize);
+        doc.text(title, W / 2, 13, { align: "center" });
+        doc.setTextColor(0, 0, 0);
+      };
 
       const sectionPageMap = {};
       let firstPage = true;
@@ -204,331 +285,337 @@ function App() {
       for (const sec of sections) {
         if (sec.isPdf) continue;
 
+        // ── COVER PAGE ──────────────────────────────────────────────────────
         if (sec.id === "cover") {
           setGenStatus("Building cover page...");
           if (!firstPage) doc.addPage(); firstPage = false;
           sectionPageMap["cover"] = doc.internal.getCurrentPageInfo().pageNumber;
 
-          // Full dark background
-          doc.setFillColor(89, 83, 85);
-          doc.rect(0, 0, W, H, "F");
+          // Dark background
+          doc.setFillColor(...DARK); doc.rect(0, 0, W, H, "F");
 
-          // Subtle geometric lines - clean placement
-          doc.setDrawColor(160, 156, 150); doc.setLineWidth(0.12);
-          doc.rect(M - 8, 110, 62, 55);
-          doc.rect(M + 6, 122, 42, 38);
-          doc.rect(W - M - 65, H - 130, 58, 50);
-          doc.rect(W - M - 50, H - 118, 38, 34);
+          // Header band — 22mm tall
+          const HDR = 22;
+          doc.setFillColor(...DARK); doc.rect(0, 0, W, HDR, "F");
+          doc.setDrawColor(...LGRAY); doc.setLineWidth(0.3);
+          doc.line(0, HDR, W, HDR);
 
-          // Slim header band with logo — 24mm tall
-          const hdrH = 24;
-          doc.setFillColor(89, 83, 85);
-          doc.rect(0, 0, W, hdrH, "F");
-          // Header bottom border
-          doc.setDrawColor(160, 156, 150); doc.setLineWidth(0.25);
-          doc.line(0, hdrH, W, hdrH);
-
-          // Logo in header
-          try {
-              if (logo) {
+          // Logo
+          if (logo) {
+            try {
               const fmt = logo.startsWith("data:image/png") ? "PNG" : "JPEG";
-              const lH = hdrH - 6;
-              const lW = lH * 1.75;
-              doc.addImage(logo, fmt, 8, 3, lW, lH);
-              }
-            } catch (e) { console.warn("Logo error", e); }
+              const lH = HDR - 5;
+              const lW = lH * (1050 / 600); // logo aspect ratio
+              doc.addImage(logo, fmt, 6, 3, lW, lH);
+            } catch (e) { console.warn("logo err", e); }
+          }
 
-          // Content starts below header
-          const startY = hdrH + 22;
+          // Title area
+          const tY = HDR + 20;
+          doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+          doc.setTextColor(...LGRAY);
+          doc.text("RESERVE REVIEW & ADVISORY REPORT", W / 2, tY, { align: "center" });
 
-          // Report label
-          doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(200, 198, 192);
-          doc.text("RESERVE REVIEW & ADVISORY REPORT", W / 2, startY, { align: "center" });
+          doc.setFont("helvetica", "bold"); doc.setFontSize(22);
+          doc.setTextColor(...WHITE);
+          doc.text("PCNA & Capital Reserve Advisory", W / 2, tY + 13, { align: "center" });
 
-          // Main title
-          doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(241, 239, 232);
-          doc.text("PCNA & Capital Reserve Advisory", W / 2, startY + 14, { align: "center" });
+          doc.setDrawColor(...LGRAY); doc.setLineWidth(0.3);
+          doc.line(W / 2 - 18, tY + 18, W / 2 + 18, tY + 18);
 
-          // Short divider
-          doc.setDrawColor(180, 178, 169); doc.setLineWidth(0.3);
-          doc.line(W/2 - 16, startY + 20, W/2 + 16, startY + 20);
+          doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+          doc.setTextColor(215, 213, 207);
+          doc.text("Property Condition Needs Assessment", W / 2, tY + 26, { align: "center" });
+          doc.text("Replacement Reserve Schedule", W / 2, tY + 33, { align: "center" });
 
-          // Subtitle
-          doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(215, 213, 207);
-          doc.text("Property Condition Needs Assessment", W / 2, startY + 28, { align: "center" });
-          doc.text("Replacement Reserve Schedule", W / 2, startY + 35, { align: "center" });
+          // Property info card
+          const cY = tY + 44;
+          doc.setDrawColor(160, 158, 154); doc.setLineWidth(0.2);
+          doc.roundedRect(M, cY, CW, 40, 1, 1, "S");
 
-          // Property card box
-          const cardY = startY + 46;
-          const cardH = 38;
-          doc.setDrawColor(180, 178, 169); doc.setLineWidth(0.2);
-          doc.setFillColor(0, 0, 0, 0.1);
-          doc.roundedRect(M, cardY, CW, cardH, 1, 1, "S");
-
-          let ry = cardY + 9;
-          [["PROPERTY", info.propertyName || "—", true], ["LOCATION", info.address || "—", false], ["DATE", info.date, false]].forEach(([k, v, bold]) => {
-            doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(200, 198, 192);
-            doc.text(k, M + 6, ry);
+          const rows2 = [["PROPERTY", info.propertyName || "—", true], ["LOCATION", info.address || "—", false], ["DATE", info.date, false]];
+          let ry = cY + 10;
+          rows2.forEach(([k, v, bold]) => {
+            doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...LGRAY);
+            doc.text(k, M + 5, ry);
             doc.setFont("helvetica", bold ? "bold" : "normal");
-            doc.setFontSize(bold ? 10.5 : 9.5);
-            doc.setTextColor(bold ? 241 : 225, bold ? 239 : 223, bold ? 232 : 218);
-            const lines = doc.splitTextToSize(v, CW - 36);
-            doc.text(lines, M + 30, ry);
-            ry += 11;
+            doc.setFontSize(bold ? 10 : 9);
+            doc.setTextColor(bold ? 241 : 220, bold ? 239 : 218, bold ? 232 : 214);
+            doc.text(doc.splitTextToSize(v, CW - 34), M + 30, ry);
+            ry += 12;
           });
 
-          // Footer divider
-          const ftY = H - 26;
-          doc.setDrawColor(180, 178, 169); doc.setLineWidth(0.2);
-          doc.line(0, ftY, W, ftY);
+          // Footer
+          const fY = H - 28;
+          doc.setDrawColor(140, 136, 132); doc.setLineWidth(0.2);
+          doc.line(M, fY, W - M, fY);
+          doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(...LGRAY);
+          doc.text("Prepared by", W / 2, fY + 8, { align: "center" });
+          doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...WHITE);
+          doc.text("Roselle Creative Solutions", W / 2, fY + 16, { align: "center" });
+          doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...LGRAY);
+          doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W / 2, fY + 23, { align: "center" });
 
-          // Prepared by footer
-          doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(200, 198, 192);
-          doc.text("Prepared by", W / 2, ftY + 7, { align: "center" });
-          doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(241, 239, 232);
-          doc.text("Roselle Creative Solutions", W / 2, ftY + 15, { align: "center" });
-          doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(200, 198, 192);
-          doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W / 2, ftY + 22, { align: "center" });
-
+        // ── NOTES PAGE ──────────────────────────────────────────────────────
         } else if (sec.id === "notes") {
-          const vg = genNotes.filter(n => n && (n.text || n).toString().trim());
-          const ve = [];
-          if (!vg.length && !ve.length) continue;
+          if (!noteLines.length) continue;
           setGenStatus("Building notes page...");
           doc.addPage();
           sectionPageMap["notes"] = doc.internal.getCurrentPageInfo().pageNumber;
+          darkHeader("Clarifications & Property Notes");
 
-          doc.setFillColor(85, 82, 80); doc.rect(0, 0, W, 22, "F");
-          doc.setTextColor(241, 239, 232); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
-          doc.text("Clarifications & Property Notes", W / 2, 14, { align: "center" });
-
-          let y = 32;
-          // Render notes with proper bold handling
-          const allNotes = [...vg, ...ve];
-          const addNotesHeader = () => {
-            doc.setFillColor(89, 83, 85); doc.rect(0, 0, W, 22, "F");
-            doc.setTextColor(241, 239, 232); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
-            doc.text("Clarifications & Property Notes", W / 2, 14, { align: "center" });
+          let y = 28;
+          const newNotesPage = () => {
+            doc.addPage(); y = 28; darkHeader("Clarifications & Property Notes");
           };
-          allNotes.forEach(line => {
-            const lineText = line.text || line;
-            const allBold = line.allBold || line.__bold;
-            if (y > H - 28) { doc.addPage(); y = 28; addNotesHeader(); }
+
+          noteLines.forEach(line => {
+            if (y > H - 22) newNotesPage();
+            const { text, allBold, segments } = line;
+
             if (allBold) {
-              // Full line bold = section header with underline
-              y += 4;
-              doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(30, 30, 30);
-              doc.text(lineText, M, y); y += 2;
-              doc.setDrawColor(89, 83, 85); doc.setLineWidth(0.5);
+              // Section header — bold + underline
+              y += 3;
+              doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(25, 25, 25);
+              doc.text(text, M, y); y += 2;
+              doc.setDrawColor(...DARK); doc.setLineWidth(0.4);
               doc.line(M, y, W - M, y); y += 7;
-            } else if (line.segments && line.segments.some(s => s.bold)) {
-              // Partial bold — render word by word
-              const txt = lineText.replace(/^[•\s]+/, "");
-              doc.setFontSize(9.5); doc.setTextColor(60, 58, 56);
-              let x = M;
-              const bulletW = doc.getTextWidth("• ");
-              doc.setFont("helvetica", "normal");
-              doc.text("• ", x, y); x += bulletW;
-              line.segments.forEach(seg => {
-                if (!seg.text) return;
-                doc.setFont("helvetica", seg.bold ? "bold" : "normal");
-                const words = seg.text.split(/(\s+)/);
-                words.forEach(word => {
-                  if (!word) return;
-                  const ww = doc.getTextWidth(word);
-                  if (x + ww > W - M) { y += 5.5; x = M + bulletW; }
-                  doc.text(word, x, y); x += ww;
-                });
-              });
-              y += 7;
             } else {
-              // Regular bullet point
-              doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(60, 58, 56);
-              const txt = lineText.replace(/^[•\s]+/, "");
-              const wrappedLines = doc.splitTextToSize("• " + txt, CW);
-              doc.text(wrappedLines, M, y); y += wrappedLines.length * 5.5 + 3;
+              // Bullet point — may have partial bold
+              const hasPartialBold = segments && segments.some(s => s.bold && s.text.trim());
+              doc.setFontSize(9.5); doc.setTextColor(45, 45, 45);
+
+              if (!hasPartialBold) {
+                // Simple bullet
+                doc.setFont("helvetica", "normal");
+                const clean = text.replace(/^[•\-\s]+/, "");
+                const wrapped = doc.splitTextToSize("• " + clean, CW);
+                if (y + wrapped.length * 5.5 > H - 22) newNotesPage();
+                doc.text(wrapped, M, y);
+                y += wrapped.length * 5.5 + 3;
+              } else {
+                // Inline bold — render segment by segment
+                doc.setFont("helvetica", "normal");
+                doc.text("• ", M, y);
+                let x = M + doc.getTextWidth("• ");
+                const lineH = 5.5;
+                segments.forEach(seg => {
+                  if (!seg.text) return;
+                  doc.setFont("helvetica", seg.bold ? "bold" : "normal");
+                  // Word wrap within segment
+                  seg.text.split(/(\s+)/).forEach(token => {
+                    if (!token) return;
+                    const tw = doc.getTextWidth(token);
+                    if (x + tw > W - M && token.trim()) {
+                      y += lineH; x = M + doc.getTextWidth("  ");
+                      if (y > H - 22) { newNotesPage(); x = M + doc.getTextWidth("  "); }
+                    }
+                    doc.text(token, x, y); x += tw;
+                  });
+                });
+                y += lineH + 3;
+              }
             }
           });
 
+        // ── EXCEL PAGE ──────────────────────────────────────────────────────
         } else if (sec.id === "excel") {
-          if (!excelData?.rows?.length) continue;
+          if (!excelData) continue;
           setGenStatus("Building spreadsheet...");
           doc.addPage();
           sectionPageMap["excel"] = doc.internal.getCurrentPageInfo().pageNumber;
+          darkHeader("Replacement Reserve Schedule");
 
-          doc.setFillColor(89, 83, 85); doc.rect(0, 0, W, 22, "F");
-          doc.setTextColor(241, 239, 232); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
-          doc.text("Replacement Reserve Schedule", W / 2, 14, { align: "center" });
+          const { rows, sectionRows } = excelData;
+          const head = [rows[0]];
+          const body = rows.slice(1);
 
-          const dataRows = excelData.rows.slice(1);
-          const sectionHeaderIndices = new Set();
-          dataRows.forEach((row, i) => {
-            const nonEmpty = row.filter(c => c !== null && c !== undefined && c !== "");
-            if (nonEmpty.length === 1 && row[0]) sectionHeaderIndices.add(i);
-          });
           doc.autoTable({
-            head: [excelData.rows[0].map(c => String(c ?? ""))],
-            body: dataRows.map(row => row.map(c => { if (c === "" || c == null) return ""; if (typeof c === "number") return c.toLocaleString("en-US"); return String(c); })),
-            startY: 26, margin: { left: M, right: M, bottom: 20 },
-            styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", textColor: [44, 44, 42], lineColor: [210, 208, 200], lineWidth: 0.1 },
-            headStyles: { fillColor: [89, 83, 85], textColor: [241, 239, 232], fontStyle: "bold", fontSize: 8.5, cellPadding: 4 },
+            head, body,
+            startY: 22,
+            margin: { left: M, right: M, bottom: 18 },
+            tableWidth: CW,
+            styles: {
+              fontSize: 8.5,
+              cellPadding: { top: 3, bottom: 3, left: 4, right: 4 },
+              overflow: "linebreak",
+              textColor: [30, 30, 30],
+              lineColor: [210, 208, 200],
+              lineWidth: 0.15,
+            },
+            headStyles: {
+              fillColor: DARK,
+              textColor: WHITE,
+              fontStyle: "bold",
+              fontSize: 9,
+              cellPadding: { top: 4, bottom: 4, left: 4, right: 4 },
+            },
             alternateRowStyles: { fillColor: [247, 246, 243] },
             columnStyles: {
-              0: { cellWidth: 52 },
-              1: { halign: "right", cellWidth: 18 },
-              2: { halign: "right", cellWidth: 22 },
-              3: { halign: "right", cellWidth: 18 },
+              0: { cellWidth: 54 },
+              1: { halign: "right", cellWidth: 16 },
+              2: { halign: "right", cellWidth: 24 },
+              3: { halign: "right", cellWidth: 20 },
               4: { halign: "right", cellWidth: 18 },
-              5: { halign: "right", cellWidth: 20 },
-              6: { halign: "right", cellWidth: 20 },
+              5: { halign: "right", cellWidth: 22 },
+              6: { halign: "right", cellWidth: 22 },
               7: { cellWidth: "auto" },
             },
-            didParseCell: (data) => {
-              if (data.section === "body" && sectionHeaderIndices.has(data.row.index)) {
-                data.cell.styles.fillColor = [89, 83, 85];
-                data.cell.styles.textColor = [241, 239, 232];
+            didParseCell: data => {
+              if (data.section === "body" && sectionRows.has(data.row.index)) {
+                data.cell.styles.fillColor = DARK;
+                data.cell.styles.textColor = WHITE;
                 data.cell.styles.fontStyle = "bold";
-                data.cell.styles.fontSize = 8.5;
+                data.cell.styles.fontSize = 9;
                 data.cell.styles.halign = "left";
               }
             },
           });
 
+        // ── PHOTO PAGES ──────────────────────────────────────────────────────
         } else if (sec.id === "photos") {
-          if (!pptSlides.length) continue;
-          setGenStatus(`Building photo pages... (${pptSlides.length} photos)`);
-          const hdrH2 = 14;
-          const maxImgW = CW;
-          const maxImgH = (H - hdrH2 - 10) / 2;
-          const gap = 2;
+          if (!slidesRef.current.length) continue;
+          setGenStatus(`Building photo pages...`);
 
-          // Compress + get natural dimensions
-          const compressImage = (dataUrl) => new Promise(resolve => {
+          const HDR2 = 14;
+          const SLOT_H = (H - HDR2 - 8) / 2;
+          const MAX_W = CW;
+          const MAX_H = SLOT_H - 3;
+          const GAP = 2;
+
+          // Image compressor
+          const compress = dataUrl => new Promise(res => {
             const img = new Image();
             img.onload = () => {
-              const canvas = document.createElement("canvas");
-              const scale = Math.min(1, 1200 / img.width);
-              canvas.width = Math.round(img.width * scale);
-              canvas.height = Math.round(img.height * scale);
-              canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-              resolve({ dataUrl: canvas.toDataURL("image/jpeg", 0.65), w: img.width, h: img.height });
+              const scale = Math.min(1, 1400 / img.width, 1000 / img.height);
+              const c = document.createElement("canvas");
+              c.width = Math.round(img.width * scale);
+              c.height = Math.round(img.height * scale);
+              c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+              res({ url: c.toDataURL("image/jpeg", 0.72), w: img.width, h: img.height });
             };
-            img.onerror = () => resolve({ dataUrl, w: 4, h: 3 });
+            img.onerror = () => res({ url: dataUrl, w: 4, h: 3 });
             img.src = dataUrl;
           });
 
-          for (let i = 0; i < pptSlides.length; i++) {
+          for (let i = 0; i < slidesRef.current.length; i++) {
             if (i % 2 === 0) {
               doc.addPage();
               if (i === 0) sectionPageMap["photos"] = doc.internal.getCurrentPageInfo().pageNumber;
-              doc.setFillColor(89, 83, 85); doc.rect(0, 0, W, hdrH2, "F");
-              doc.setTextColor(241, 239, 232); doc.setFont("helvetica", "bold"); doc.setFontSize(8);
+              doc.setFillColor(...DARK); doc.rect(0, 0, W, HDR2, "F");
+              doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold"); doc.setFontSize(8);
               doc.text("Supporting Documentation — Product Photos", W / 2, 9.5, { align: "center" });
             }
             const slot = i % 2;
-            const slotY = hdrH2 + 2 + slot * (maxImgH + gap);
-            const slide = slidesDataRef.current[i];
-            if (!slide) continue;
+            const slotY = HDR2 + 2 + slot * (SLOT_H + GAP);
+            const slide = slidesRef.current[i];
             try {
-              const { dataUrl: cUrl, w: iW, h: iH } = await compressImage(slide.dataUrl);
-              // Maintain aspect ratio
+              const { url, w: iW, h: iH } = await compress(slide.dataUrl);
               const ratio = iW / iH;
-              let drawW = maxImgW;
-              let drawH = drawW / ratio;
-              if (drawH > maxImgH) { drawH = maxImgH; drawW = drawH * ratio; }
-              const xOff = M + (maxImgW - drawW) / 2;
-              const yOff = slotY + (maxImgH - drawH) / 2;
-              doc.addImage(cUrl, "JPEG", xOff, yOff, drawW, drawH);
-            } catch(e) {
-              doc.setFillColor(220, 218, 210); doc.rect(M, slotY, maxImgW, maxImgH, "F");
+              let dW = MAX_W;
+              let dH = dW / ratio;
+              if (dH > MAX_H) { dH = MAX_H; dW = dH * ratio; }
+              const xOff = M + (MAX_W - dW) / 2;
+              const yOff = slotY + (MAX_H - dH) / 2;
+              doc.addImage(url, "JPEG", xOff, yOff, dW, dH);
+            } catch (e) {
+              doc.setFillColor(220, 218, 210); doc.rect(M, slotY, MAX_W, MAX_H, "F");
             }
           }
         }
       }
 
-      // Assemble with pdf-lib
+      // ── MERGE WITH EXTRA PDFs ─────────────────────────────────────────────
       setGenStatus("Merging all sections...");
       const mainBytes = doc.output("arraybuffer");
       const finalDoc = await PDFDocument.create();
-      const mainDoc = await PDFDocument.load(mainBytes);
+      const mainPDF = await PDFDocument.load(mainBytes);
+      const totalMain = mainPDF.getPageCount();
 
-      // Build jsPDF page ranges
-      const jsPDFPageCount = mainDoc.getPageCount();
-      const sectionIds = Object.keys(sectionPageMap);
-      const pageRanges = {};
-      sectionIds.forEach((id, i) => {
+      // Figure out page ranges per section
+      const secIds = Object.keys(sectionPageMap);
+      const ranges = {};
+      secIds.forEach((id, i) => {
         const start = sectionPageMap[id] - 1;
-        const nextId = sectionIds[i + 1];
-        const end = nextId ? sectionPageMap[nextId] - 2 : jsPDFPageCount - 1;
-        pageRanges[id] = { start, end };
+        const next = secIds[i + 1];
+        const end = next ? sectionPageMap[next] - 2 : totalMain - 1;
+        ranges[id] = { start, end };
       });
 
-      const coverPageIndices = new Set();
+      const coverPages = new Set();
       let totalAdded = 0;
 
       for (const sec of sections) {
         if (sec.isPdf) {
-          const extDoc = await PDFDocument.load(pdfDataRef.current[sec.id]);
-          const count = extDoc.getPageCount();
-          const copied = await finalDoc.copyPages(extDoc, [...Array(count).keys()]);
-          copied.forEach(p => { finalDoc.addPage(p); totalAdded++; });
+          const bytes = pdfBytesRef.current[sec.id];
+          if (!bytes) continue;
+          const extPDF = await PDFDocument.load(bytes);
+          const count = extPDF.getPageCount();
+          const copied = await finalDoc.copyPages(extPDF, [...Array(count).keys()]);
+          copied.forEach(p => finalDoc.addPage(p));
+          totalAdded += count;
         } else {
-          const range = pageRanges[sec.id];
+          const range = ranges[sec.id];
           if (!range) continue;
           const idxs = [];
           for (let i = range.start; i <= range.end; i++) idxs.push(i);
           if (!idxs.length) continue;
-          const copied = await finalDoc.copyPages(mainDoc, idxs);
+          const copied = await finalDoc.copyPages(mainPDF, idxs);
           copied.forEach((p, pi) => {
             finalDoc.addPage(p);
-            if (sec.id === "cover" && pi === 0) coverPageIndices.add(totalAdded);
+            if (sec.id === "cover" && pi === 0) coverPages.add(totalAdded);
             totalAdded++;
           });
         }
       }
 
-      // Footers & page numbers
-      setGenStatus("Adding footers and page numbers...");
+      // ── FOOTERS ───────────────────────────────────────────────────────────
+      setGenStatus("Adding footers...");
       const font = await finalDoc.embedFont(StandardFonts.Helvetica);
       const pages = finalDoc.getPages();
-      const nonCoverTotal = pages.length - coverPageIndices.size;
+      const nonCover = pages.length - coverPages.size;
       let pageNum = 0;
 
-      pages.forEach((page, i) => {
-        if (coverPageIndices.has(i)) return;
+      pages.forEach((pg, i) => {
+        if (coverPages.has(i)) return;
         pageNum++;
-        const { width, height } = page.getSize();
+        const { width, height } = pg.getSize();
         const mPt = M * 2.835;
-        const lineY = 24;
-        page.drawLine({ start: { x: mPt, y: lineY }, end: { x: width - mPt, y: lineY }, thickness: 0.4, color: rgb(0.53, 0.53, 0.5) });
-        const leftText = `Page ${pageNum} of ${nonCoverTotal}`;
-        const rightText = "Roselle Creative Solutions";
+        const lineY = 22;
+        pg.drawLine({ start: { x: mPt, y: lineY }, end: { x: width - mPt, y: lineY }, thickness: 0.35, color: rgb(0.75, 0.74, 0.72) });
         const fs = 7;
-        page.drawText(leftText, { x: mPt, y: 14, size: fs, font, color: rgb(0.53, 0.53, 0.5) });
-        page.drawText(rightText, { x: width - mPt - font.widthOfTextAtSize(rightText, fs), y: 14, size: fs, font, color: rgb(0.53, 0.53, 0.5) });
+        const pnText = `Page ${pageNum} of ${nonCover}`;
+        const coText = "Roselle Creative Solutions";
+        pg.drawText(pnText, { x: mPt, y: 14, size: fs, font, color: rgb(0.55, 0.54, 0.52) });
+        pg.drawText(coText, { x: width - mPt - font.widthOfTextAtSize(coText, fs), y: 14, size: fs, font, color: rgb(0.55, 0.54, 0.52) });
       });
 
-      setGenStatus("Saving...");
+      // ── SAVE ──────────────────────────────────────────────────────────────
+      setGenStatus("Saving PDF...");
       const bytes = await finalDoc.save();
       const blob = new Blob([bytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = `${(info.propertyName || "Report").replace(/\s+/g, "_")}_PCNA_Report.pdf`;
-      a.click(); URL.revokeObjectURL(url);
+      a.href = url;
+      a.download = `${(info.propertyName || "Report").replace(/\s+/g, "_")}_PCNA_Report.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
       setDone(true); setGenStatus("Done!");
     } catch (err) {
-      console.error(err); alert("Error: " + err.message);
+      console.error(err); alert("Error generating PDF: " + err.message);
     } finally { setGenerating(false); }
-  }, [sections, info, genNotes, eqNotes, excelData, pptSlides, logo]);
+  }, [sections, info, logo, noteLines, excelData, pptSlides]);
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const canNext = () => step === 0 ? info.propertyName.trim() && info.address.trim() : true;
-  const secDesc = (sec) => {
-    if (sec.id === "notes") return notesDocName ? `${notesDocName} · ${genNotes.length} lines` : "Not uploaded";
-    if (sec.id === "excel") return excelData ? `${excelFileName} · ${excelData.rows.length} rows` : "Not uploaded";
-    if (sec.id === "photos") return pptSlides.length ? `${pptSlides.length} photos · ${Math.ceil(pptSlides.length/2)} pages` : "Not uploaded";
+  const secDesc = sec => {
+    if (sec.id === "notes")  return notesDocName ? `${notesDocName} · ${noteLines.length} lines` : "Not uploaded";
+    if (sec.id === "excel")  return excelData ? `${excelFileName} · ${excelData.rows.length} rows` : "Not uploaded";
+    if (sec.id === "photos") return pptSlides.length ? `${pptSlides.length} photos` : "Not uploaded";
     return sec.desc || "";
   };
 
+  // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "var(--font-sans)", maxWidth: 900, margin: "0 auto" }}>
       <style>{`.rb{transition:opacity .15s,transform .1s}.rb:hover:not(:disabled){opacity:.87}.rb:active:not(:disabled){transform:scale(.98)}`}</style>
@@ -550,7 +637,7 @@ function App() {
       </div>
 
       {/* Body */}
-      <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", border: "0.5px solid var(--color-border-tertiary)", borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden", minHeight: 580 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", border: "0.5px solid var(--color-border-tertiary)", borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden", minHeight: 560 }}>
 
         {/* Sidebar */}
         <div style={{ background: "var(--color-background-secondary)", borderRight: "0.5px solid var(--color-border-tertiary)", padding: "22px 14px" }}>
@@ -559,7 +646,8 @@ function App() {
             {STEPS.map((s, i) => {
               const active = i === step, done2 = i < step;
               return (
-                <div key={i} onClick={() => done2 && setStep(i)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, background: active ? "var(--color-background-info)" : "transparent", cursor: done2 ? "pointer" : "default" }}>
+                <div key={i} onClick={() => done2 && setStep(i)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, background: active ? "var(--color-background-info)" : "transparent", cursor: done2 ? "pointer" : "default" }}>
                   <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: active ? "#185FA5" : done2 ? "#3B6D11" : "var(--color-background-tertiary)", border: active || done2 ? "none" : "0.5px solid var(--color-border-secondary)" }}>
                     {done2 ? <svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="#C0DD97" strokeWidth="1.8" fill="none" strokeLinecap="round"/></svg>
                       : <span style={{ color: active ? "#E6F1FB" : "var(--color-text-tertiary)", fontSize: 10, fontWeight: 600 }}>{i + 1}</span>}
@@ -571,7 +659,7 @@ function App() {
           </div>
           <div style={{ marginTop: 28, paddingTop: 20, borderTop: "0.5px solid var(--color-border-tertiary)" }}>
             <p style={{ fontSize: 10, fontWeight: 600, color: "var(--color-text-tertiary)", margin: "0 0 10px", letterSpacing: "0.08em", textTransform: "uppercase" }}>This report</p>
-            {[["Property", info.propertyName || "—"], ["Excel", excelData ? "✓ uploaded" : "not yet"], ["PowerPoint", pptSlides.length ? `${pptSlides.length} slides` : "not yet"], ["Notes doc", notesDocName || "none"], ["Extra PDFs", extraPdfs.length ? `${extraPdfs.length} file(s)` : "none"]].map(([k, v]) => (
+            {[["Property", info.propertyName || "—"], ["Excel", excelData ? "✓" : "not yet"], ["PowerPoint", pptSlides.length ? `${pptSlides.length} slides` : "not yet"], ["Notes", notesDocName || "none"], ["Extra PDFs", extraPdfs.length ? `${extraPdfs.length}` : "none"]].map(([k, v]) => (
               <div key={k} style={{ marginBottom: 5 }}>
                 <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{k}: </span>
                 <span style={{ fontSize: 11, color: "var(--color-text-secondary)", fontWeight: 500 }}>{v}</span>
@@ -580,122 +668,116 @@ function App() {
           </div>
         </div>
 
-        {/* Main */}
-        <div style={{ padding: "28px 32px", background: "var(--color-background-primary)", overflowY: "auto", maxHeight: "90vh" }}>
+        {/* Main content — scrollable so Next button is always visible */}
+        <div style={{ padding: "28px 32px", background: "var(--color-background-primary)", overflowY: "auto", maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
 
-          {/* STEP 0 */}
+          {/* ── STEP 0: Property info ── */}
           {step === 0 && (
-            <div>
+            <div style={{ flex: 1 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>Property information</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>These details appear on the cover page</p>
               <input ref={logoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogo} />
               <div style={{ marginBottom: 18 }}>
-                <label style={lbl}>Logo <span style={{ color: "#E24B4A", fontSize: 11 }}>— upload once per session, appears on cover page</span></label>
+                <label style={lbl}>Logo <span style={{ color: "#185FA5", fontWeight: 400 }}>— upload each session, appears on cover page</span></label>
                 {logo
                   ? <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "#2C2C2A" }}>
                       <img src={logo} style={{ height: 30, objectFit: "contain" }} alt="logo" />
-                      <button onClick={() => logoRef.current.click()} style={{ fontSize: 12, color: "#B4B2A9", background: "none", border: "none", cursor: "pointer" }}>Change logo</button>
+                      <button onClick={() => logoRef.current.click()} style={{ fontSize: 12, color: "#B4B2A9", background: "none", border: "none", cursor: "pointer" }}>Change</button>
                     </div>
-                  : <DropZone icon="🖼️" text="Click to upload logo (PNG recommended)" onClick={() => logoRef.current.click()} />}
+                  : <DropZone icon="🖼️" text="Click to upload logo (PNG)" onClick={() => logoRef.current.click()} onDrop={async files => { const f = files[0]; if (f) setLogo(await readAsDataURL(f)); }} />}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div><label style={lbl}>Property name *</label><input style={inp} placeholder="e.g. Yardley Rehabilitation Center" value={info.propertyName} onChange={e => setInfo(p => ({ ...p, propertyName: e.target.value }))} /></div>
                 <div><label style={lbl}>Report date</label><input style={inp} value={info.date} onChange={e => setInfo(p => ({ ...p, date: e.target.value }))} /></div>
               </div>
               <div style={{ marginBottom: 16 }}><label style={lbl}>Property address *</label><input style={inp} placeholder="e.g. 1480 Oxford Valley Rd, Yardley, PA 19067" value={info.address} onChange={e => setInfo(p => ({ ...p, address: e.target.value }))} /></div>
-              <div>
-                <label style={lbl}>Prepared by</label>
-                <input style={{ ...inp, background: "var(--color-background-secondary)", color: "var(--color-text-tertiary)" }} value="Roselle Creative Solutions" readOnly />
-              </div>
+              <div><label style={lbl}>Prepared by</label><input style={{ ...inp, background: "var(--color-background-secondary)", color: "var(--color-text-tertiary)" }} value="Roselle Creative Solutions" readOnly /></div>
             </div>
           )}
 
-          {/* STEP 1 */}
+          {/* ── STEP 1: Notes ── */}
           {step === 1 && (
-            <div>
+            <div style={{ flex: 1 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>Notes & clarifications</h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>Upload your Word document — the text will be pulled in automatically. Skip this step if you have no notes.</p>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>Upload your Word document. Skip this step if no notes.</p>
               <input ref={wordRef} type="file" accept=".docx,.doc" style={{ display: "none" }} onChange={e => handleWordDoc(e.target.files[0])} />
               {!notesDocName
-                ? <DropZone icon="📝" text="Click to upload your Word notes document (.docx)" onClick={() => wordRef.current.click()} onDrop={files => handleWordDoc(files[0])} />
+                ? <DropZone icon="📝" text="Click to upload Word notes document (.docx)" onClick={() => wordRef.current.click()} onDrop={files => handleWordDoc(files[0])} />
                 : <div style={{ padding: "16px 20px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 10, background: "var(--color-background-secondary)" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <span style={{ fontSize: 22 }}>📝</span>
                         <div>
                           <p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{notesDocName}</p>
-                          <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{genNotes.length} lines extracted</p>
+                          <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{noteLines.length} lines extracted</p>
                         </div>
                       </div>
-                      <button onClick={() => { setNotesDocName(""); setNotesDocContent(""); setGenNotes([]); wordRef.current.value = ""; }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
+                      <button onClick={() => { setNotesDocName(""); setNoteLines([]); wordRef.current.value = ""; }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
                     </div>
                     <div style={{ maxHeight: 200, overflowY: "auto", padding: "10px 14px", background: "var(--color-background-primary)", borderRadius: 8, border: "0.5px solid var(--color-border-tertiary)" }}>
-                      {genNotes.slice(0, 20).map((line, i) => (
-                        <p key={i} style={{ fontSize: 12, color: line.__bold ? "var(--color-text-primary)" : "var(--color-text-secondary)", fontWeight: line.__bold ? 600 : 400, margin: "0 0 6px", lineHeight: 1.5 }}>{line.__bold ? "" : "• "}{line.text || line}</p>
+                      {noteLines.slice(0, 25).map((line, i) => (
+                        <p key={i} style={{ fontSize: 12, color: line.allBold ? "var(--color-text-primary)" : "var(--color-text-secondary)", fontWeight: line.allBold ? 600 : 400, margin: "0 0 6px", lineHeight: 1.5 }}>
+                          {line.allBold ? "" : "• "}{line.text}
+                        </p>
                       ))}
-                      {genNotes.length > 20 && <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: 0 }}>…and {genNotes.length - 20} more lines</p>}
+                      {noteLines.length > 25 && <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: 0 }}>…and {noteLines.length - 25} more</p>}
                     </div>
                   </div>}
             </div>
           )}
 
-          {/* STEP 2 */}
+          {/* ── STEP 2: Upload files ── */}
           {step === 2 && (
-            <div>
+            <div style={{ flex: 1 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>Upload files</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>Upload your Excel spreadsheet and PowerPoint photo deck</p>
-              <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={handleExcel} />
+              <input ref={excelRef} type="file" accept=".xlsx,.xls,.xlsm,.csv" style={{ display: "none" }} onChange={handleExcel} />
               <input ref={pptRef} type="file" accept=".pptx" style={{ display: "none" }} onChange={handlePPT} />
-
               <div style={{ marginBottom: 20 }}>
                 <label style={lbl}>Excel file — pricing spreadsheet</label>
                 {!excelData
-                  ? <DropZone icon="📊" text="Click to upload .xlsx / .xls / .csv" onClick={() => excelRef.current.click()} onDrop={files => { const f = files[0]; if (f) { const e = { target: { files } }; handleExcel(e); } }} />
+                  ? <DropZone icon="📊" text="Click to upload .xlsx / .xlsm / .csv" onClick={() => excelRef.current.click()} onDrop={files => handleExcel({ target: { files } })} />
                   : <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 10, background: "var(--color-background-secondary)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <span style={{ fontSize: 22 }}>📊</span>
                         <div><p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{excelFileName}</p><p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{excelData.rows.length} rows</p></div>
                       </div>
-                      <div style={{ display: "flex", gap: 10 }}>
-                        <button onClick={() => excelRef.current.click()} style={{ fontSize: 12, color: "var(--color-text-info)", background: "none", border: "none", cursor: "pointer" }}>Replace</button>
-                        <button onClick={() => { setExcelData(null); setExcelFileName(""); setSections(p => p.map(s => s.id === "excel" ? { ...s, desc: "Not uploaded yet" } : s)); }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
-                      </div>
+                      <button onClick={() => { setExcelData(null); setExcelFileName(""); excelRef.current.value = ""; }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
                     </div>}
               </div>
-
               <div>
                 <label style={lbl}>PowerPoint — product photos (images extracted automatically)</label>
                 {!pptSlides.length
-                  ? <DropZone icon="🖼️" text="Click to upload .pptx — your screenshots are pulled out automatically" onClick={() => pptRef.current.click()} onDrop={files => { const f = files[0]; if (f) handlePPT({ target: { files } }); }} />
+                  ? <DropZone icon="🖼️" text="Click to upload .pptx" onClick={() => pptRef.current.click()} onDrop={files => handlePPT({ target: { files } })} />
                   : <div style={{ padding: "12px 16px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 10, background: "var(--color-background-secondary)" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ fontSize: 22 }}>🖼️</span>
-                          <div><p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{pptFileName}</p><p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{pptSlides.length} photos extracted · {Math.ceil(pptSlides.length / 2)} pages · 2 per page</p></div>
+                          <div><p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{pptFileName}</p><p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{pptSlides.length} photos · {Math.ceil(pptSlides.length / 2)} pages</p></div>
                         </div>
-                        <button onClick={() => { setPptSlides([]); setPptFileName(""); setSections(p => p.map(s => s.id === "photos" ? { ...s, desc: "Not uploaded yet" } : s)); pptRef.current.value = ""; }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
+                        <button onClick={() => { setPptSlides([]); setPptFileName(""); slidesRef.current = []; pptRef.current.value = ""; }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
                       </div>
-                      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, maxHeight: 60 }}>
-                        {slidesDataRef.current.slice(0, 10).map((s, i) => <img key={i} src={s.dataUrl} alt="" style={{ height: 50, width: 70, objectFit: "cover", borderRadius: 4, flexShrink: 0, border: "0.5px solid var(--color-border-tertiary)" }} />)}
-                        {pptSlides.length > 10 && <div style={{ height: 50, width: 70, borderRadius: 4, background: "var(--color-background-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>+{pptSlides.length - 10}</span></div>}
+                      <div style={{ display: "flex", gap: 5, overflowX: "auto" }}>
+                        {slidesRef.current.slice(0, 8).map((s, i) => <img key={i} src={s.dataUrl} alt="" style={{ height: 44, width: 62, objectFit: "cover", borderRadius: 3, flexShrink: 0 }} />)}
+                        {pptSlides.length > 8 && <div style={{ height: 44, width: 62, borderRadius: 3, background: "var(--color-background-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 10, color: "var(--color-text-tertiary)" }}>+{pptSlides.length - 8}</span></div>}
                       </div>
                     </div>}
               </div>
             </div>
           )}
 
-          {/* STEP 3 */}
+          {/* ── STEP 3: Extra PDFs ── */}
           {step === 3 && (
-            <div>
+            <div style={{ flex: 1 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>Extra pages</h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>Upload contractor quotes, letters, inspection docs — their original formatting is kept. Skip this step if none.</p>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>Upload contractor quotes, letters, inspection docs. Skip if none.</p>
               <input ref={pdfRef} type="file" accept=".pdf" multiple style={{ display: "none" }} onChange={e => handleExtraPdfs(e.target.files)} />
               <button className="rb" onClick={() => pdfRef.current.click()} style={{ padding: "10px 20px", background: "var(--color-background-secondary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 13, cursor: "pointer", marginBottom: 16, color: "var(--color-text-primary)" }}>+ Upload PDF(s)</button>
               {!extraPdfs.length
-                ? <DropZone icon="📎" text="Or click above to add PDFs — you can skip this step" onClick={() => pdfRef.current.click()} onDrop={files => handleExtraPdfs(files)} />
+                ? <DropZone icon="📎" text="Or drag & drop PDFs here" onClick={() => pdfRef.current.click()} onDrop={files => handleExtraPdfs(files)} />
                 : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {extraPdfs.map((f, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 8, background: "var(--color-background-secondary)" }}>
+                    {extraPdfs.map((f) => (
+                      <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 8, background: "var(--color-background-secondary)" }}>
                         <span style={{ fontSize: 20 }}>📎</span>
                         <p style={{ fontSize: 13, fontWeight: 500, margin: 0, flex: 1 }}>{f.name}</p>
                         <button onClick={() => removeExtraPdf(f.id)} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
@@ -705,15 +787,19 @@ function App() {
             </div>
           )}
 
-          {/* STEP 4 */}
+          {/* ── STEP 4: Arrange order ── */}
           {step === 4 && (
-            <div>
+            <div style={{ flex: 1 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>Arrange page order</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>Drag sections into the order you want them in the final PDF</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
                 {sections.map((sec, i) => (
-                  <div key={sec.id} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDrop={() => onDrop(i)} onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
-                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: dragOverIdx === i ? "2px solid #185FA5" : "0.5px solid var(--color-border-tertiary)", borderRadius: 10, background: dragIdx === i ? "var(--color-background-info)" : "var(--color-background-primary)", opacity: dragIdx === i ? 0.65 : 1, cursor: "grab", transform: dragOverIdx === i && dragIdx !== i ? "scale(1.01)" : "scale(1)", transition: "border-color 0.1s, transform 0.1s" }}>
+                  <div key={sec.id} draggable
+                    onDragStart={() => onDragStart(i)}
+                    onDragOver={e => onDragOver(e, i)}
+                    onDrop={() => onDrop(i)}
+                    onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: dragOverIdx === i ? "2px solid #185FA5" : "0.5px solid var(--color-border-tertiary)", borderRadius: 10, background: dragIdx === i ? "var(--color-background-info)" : "var(--color-background-primary)", cursor: "grab", opacity: dragIdx === i ? 0.6 : 1, transition: "border-color 0.1s" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0, opacity: 0.4 }}>
                       {[0,1,2].map(j => <div key={j} style={{ width: 14, height: 1.5, background: "var(--color-text-secondary)", borderRadius: 1 }} />)}
                     </div>
@@ -728,40 +814,32 @@ function App() {
                   </div>
                 ))}
               </div>
-              <div style={{ padding: "12px 16px", background: "var(--color-background-secondary)", borderRadius: 8, border: "0.5px solid var(--color-border-tertiary)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "var(--color-text-secondary)", fontStyle: "italic" }}>Roselle Creative Solutions · Page 1 of —</span>
-                <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>Footer preview · no footer on cover</span>
-              </div>
             </div>
           )}
 
-          {/* STEP 5 */}
+          {/* ── STEP 5: Generate ── */}
           {step === 5 && (
-            <div>
+            <div style={{ flex: 1 }}>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>Generate report</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 20px" }}>Everything is ready — click to build your PDF</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
-                {[["Property", info.propertyName || "—"], ["Address", info.address || "—"], ["Date", info.date], ["Notes doc", notesDocName || "Not uploaded"], ["Excel", excelData ? `${excelData.rows.length} rows · ${excelFileName}` : "Not uploaded"], ["Photos", pptSlides.length ? `${pptSlides.length} photos` : "Not uploaded"], ["Extra PDFs", extraPdfs.length ? `${extraPdfs.length} file(s)` : "None"]].map(([k, v]) => (
-                  <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 14px", background: "var(--color-background-secondary)", borderRadius: 8, border: "0.5px solid var(--color-border-tertiary)", gap: 12 }}>
+                {[["Property", info.propertyName || "—"], ["Address", info.address || "—"], ["Date", info.date], ["Notes", notesDocName || "Not uploaded"], ["Excel", excelData ? `${excelData.rows.length} rows` : "Not uploaded"], ["Photos", pptSlides.length ? `${pptSlides.length}` : "Not uploaded"], ["Extra PDFs", extraPdfs.length ? `${extraPdfs.length} file(s)` : "None"]].map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "9px 14px", background: "var(--color-background-secondary)", borderRadius: 8, border: "0.5px solid var(--color-border-tertiary)", gap: 12 }}>
                     <span style={{ fontSize: 13, color: "var(--color-text-secondary)", flexShrink: 0 }}>{k}</span>
                     <span style={{ fontSize: 13, fontWeight: 500, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v}</span>
                   </div>
                 ))}
               </div>
-              {done && <div style={{ padding: "12px 16px", background: "var(--color-background-success)", border: "0.5px solid var(--color-border-success)", borderRadius: 8, marginBottom: 14, fontSize: 13, color: "var(--color-text-success)", display: "flex", alignItems: "center", gap: 8 }}>
-                <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="7" fill="#3B6D11"/><polyline points="3.5,7 6,9.5 10.5,4.5" stroke="#C0DD97" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
-                PDF downloaded! Check your downloads folder.
-              </div>}
+              {done && <div style={{ padding: "12px 16px", background: "var(--color-background-success)", border: "0.5px solid var(--color-border-success)", borderRadius: 8, marginBottom: 14, fontSize: 13, color: "var(--color-text-success)" }}>✓ PDF downloaded! Check your downloads folder.</div>}
               {generating && genStatus && <div style={{ padding: "10px 14px", background: "var(--color-background-info)", border: "0.5px solid var(--color-border-info)", borderRadius: 8, marginBottom: 14, fontSize: 13, color: "var(--color-text-info)" }}>⏳ {genStatus}</div>}
               <button className="rb" onClick={generatePDF} disabled={generating} style={{ width: "100%", padding: "15px", background: generating ? "#888780" : "#2C2C2A", color: "#F1EFE8", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 500, cursor: generating ? "not-allowed" : "pointer" }}>
-                {generating ? "Generating PDF…" : "⬇ Generate & Download PDF"}
+                {generating ? "Generating…" : "⬇ Generate & Download PDF"}
               </button>
-              {generating && <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", textAlign: "center", marginTop: 10 }}>This may take a minute for large photo sets…</p>}
             </div>
           )}
 
-          {/* Nav */}
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 28, paddingTop: 20, borderTop: "0.5px solid var(--color-border-tertiary)" }}>
+          {/* Nav buttons */}
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 28, paddingTop: 20, borderTop: "0.5px solid var(--color-border-tertiary)", flexShrink: 0 }}>
             <button className="rb" onClick={() => setStep(s => s - 1)} disabled={step === 0} style={{ padding: "9px 20px", background: "none", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 13, cursor: step === 0 ? "not-allowed" : "pointer", color: step === 0 ? "var(--color-text-tertiary)" : "var(--color-text-primary)", opacity: step === 0 ? 0.4 : 1 }}>← Back</button>
             {step < STEPS.length - 1 && <button className="rb" onClick={() => { setStep(s => s + 1); setDone(false); }} disabled={!canNext()} style={{ padding: "9px 22px", background: canNext() ? "#2C2C2A" : "var(--color-background-secondary)", color: canNext() ? "#F1EFE8" : "var(--color-text-tertiary)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: canNext() ? "pointer" : "not-allowed" }}>Next — {STEPS[step + 1]} →</button>}
           </div>
@@ -774,3 +852,5 @@ function App() {
 export default function WrappedApp() {
   return <ErrorBoundary><App /></ErrorBoundary>;
 }
+ENDOFFILE
+echo "done - $(wc -l < /home/claude/App.jsx) lines"

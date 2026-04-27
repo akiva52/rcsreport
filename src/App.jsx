@@ -443,7 +443,7 @@ export default function App() {
         </div>
 
         {/* Main */}
-        <div style={{ padding: "28px 32px", background: "var(--color-background-primary)" }}>
+        <div style={{ padding: "28px 32px", background: "var(--color-background-primary)", overflowY: "auto", maxHeight: "90vh" }}>
 
           {/* STEP 0 */}
           {step === 0 && (
@@ -536,7 +536,7 @@ export default function App() {
                         </div>
                         <button onClick={() => { setPptSlides([]); setPptFileName(""); setSections(p => p.map(s => s.id === "photos" ? { ...s, desc: "Not uploaded yet" } : s)); pptRef.current.value = ""; }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
                       </div>
-                      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+                      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, maxHeight: 60 }}>
                         {pptSlides.slice(0, 10).map((s, i) => <img key={i} src={s.dataUrl} alt="" style={{ height: 50, width: 70, objectFit: "cover", borderRadius: 4, flexShrink: 0, border: "0.5px solid var(--color-border-tertiary)" }} />)}
                         {pptSlides.length > 10 && <div style={{ height: 50, width: 70, borderRadius: 4, background: "var(--color-background-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>+{pptSlides.length - 10}</span></div>}
                       </div>

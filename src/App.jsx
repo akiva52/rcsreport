@@ -248,61 +248,79 @@ function App() {
           if (!firstPage) doc.addPage(); firstPage = false;
           sectionPageMap["cover"] = doc.internal.getCurrentPageInfo().pageNumber;
 
+          // Dark background
           doc.setFillColor(...DARK); doc.rect(0, 0, W, H, "F");
 
-          // Full-width logo header — use uploaded logo or fall back to embedded
+          // Top header area — logo left, contact info right
           const activeLogo = logo || ROSELLE_LOGO;
           const activeLogoW = logo ? logoDims.w : ROSELLE_LOGO_W;
           const activeLogoH = logo ? logoDims.h : ROSELLE_LOGO_H;
           try {
             const fmt = activeLogo.startsWith("data:image/png") ? "PNG" : "JPEG";
-            const ratio = activeLogoW / activeLogoH;
-            const capH = Math.min(W / ratio, 55);
-            doc.addImage(activeLogo, fmt, 0, 0, W, capH);
-            doc.setDrawColor(160,158,154); doc.setLineWidth(0.25);
-            doc.line(0, capH, W, capH);
-          } catch(e) { console.warn("Logo render error:", e); }
+            const lH = 18; const lW = lH * (activeLogoW / activeLogoH);
+            doc.addImage(activeLogo, fmt, M, 10, lW, lH);
+          } catch(e) { console.warn(e); }
 
-          const startY = 65;
+          // Contact info top right
+          doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(180,178,170);
+          doc.text("79 Roselle Court  ·  Lakewood, NJ 08701", W-M, 13, { align:"right" });
+          doc.text("Office@rosellecs.com  ·  732-496-6029", W-M, 20, { align:"right" });
 
-          doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
-          doc.setTextColor(200, 198, 192);
-          doc.text("RESERVE REVIEW & ADVISORY REPORT", W/2, startY, { align: "center" });
+          // Header bottom line
+          doc.setDrawColor(120,118,115); doc.setLineWidth(0.3);
+          doc.line(0, 30, W, 30);
 
-          doc.setFont("helvetica", "bold"); doc.setFontSize(22);
-          doc.setTextColor(...WHITE);
-          doc.text("PCNA & Capital Reserve Advisory", W/2, startY+13, { align: "center" });
+          // Subtle geometric rectangles
+          doc.setDrawColor(150,148,144); doc.setLineWidth(0.3);
+          doc.rect(M-2, 50, 55, 50);
+          doc.rect(M+8, 60, 35, 35);
+          doc.rect(W-M-60, H-170, 58, 52);
+          doc.rect(W-M-46, H-158, 38, 36);
 
-          doc.setDrawColor(160,158,154); doc.setLineWidth(0.3);
-          doc.line(W/2-18, startY+18, W/2+18, startY+18);
+          // Report label
+          doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(180,178,170);
+          doc.text("RESERVE REVIEW & ADVISORY REPORT", M+28, 60);
 
-          doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-          doc.setTextColor(215, 213, 207);
-          doc.text("Property Condition Needs Assessment", W/2, startY+26, { align: "center" });
-          doc.text("Replacement Reserve Schedule", W/2, startY+33, { align: "center" });
+          // Main title
+          doc.setFont("helvetica","bold"); doc.setFontSize(26); doc.setTextColor(...WHITE);
+          const titleLines = doc.splitTextToSize("PCNA & Capital Reserve Advisory", CW - 20);
+          doc.text(titleLines, M+28, 78);
+          const titleH = titleLines.length * 10;
 
-          const cY = startY + 44;
-          doc.setDrawColor(160,158,154); doc.setLineWidth(0.2);
-          doc.roundedRect(M, cY, CW, 40, 1, 1, "S");
-          let ry = cY+10;
+          // Divider
+          const divY = 78 + titleH + 2;
+          doc.setDrawColor(160,158,154); doc.setLineWidth(0.4);
+          doc.line(M+28, divY, M+28+50, divY);
+
+          // Subtitles
+          doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(200,198,192);
+          doc.text("Property Condition Needs Assessment", M+28, divY+10);
+          doc.text("Replacement Reserve Schedule", M+28, divY+18);
+
+          // Property card
+          const cY = divY + 32;
+          doc.setDrawColor(150,148,144); doc.setLineWidth(0.3);
+          doc.roundedRect(M+16, cY, CW-16, 44, 1, 1, "S");
+          let ry = cY+12;
           [["PROPERTY", info.propertyName||"—", true],["LOCATION", info.address||"—", false],["DATE", info.date, false]].forEach(([k,v,bold]) => {
-            doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(200,198,192);
-            doc.text(k, M+5, ry);
+            doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(170,168,162);
+            doc.text(k, M+24, ry);
             doc.setFont("helvetica", bold?"bold":"normal"); doc.setFontSize(bold?10:9);
-            doc.setTextColor(bold?241:220, bold?239:218, bold?232:214);
-            doc.text(doc.splitTextToSize(v, CW-34), M+30, ry);
-            ry += 12;
+            doc.setTextColor(bold?241:210, bold?239:207, bold?232:205);
+            doc.text(doc.splitTextToSize(v, CW-56), M+50, ry);
+            ry += 13;
           });
 
-          const fY = H-28;
-          doc.setDrawColor(140,136,132); doc.setLineWidth(0.2);
+          // Footer
+          const fY = H-26;
+          doc.setDrawColor(130,128,124); doc.setLineWidth(0.2);
           doc.line(M, fY, W-M, fY);
-          doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(200,198,192);
-          doc.text("Prepared by", W/2, fY+8, { align: "center" });
+          doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(170,168,162);
+          doc.text("Prepared by", W/2, fY+8, { align:"center" });
           doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(...WHITE);
-          doc.text("Roselle Creative Solutions", W/2, fY+16, { align: "center" });
-          doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(200,198,192);
-          doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W/2, fY+23, { align: "center" });
+          doc.text("Roselle Creative Solutions", W/2, fY+16, { align:"center" });
+          doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(170,168,162);
+          doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W/2, fY+23, { align:"center" });
 
         // ── NOTES ──
         } else if (sec.id === "notes") {
@@ -332,21 +350,24 @@ function App() {
             } else {
               const hasPartial = segments && segments.some(s => s.bold && s.text.trim());
               if (!hasPartial) {
-                doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(40,40,40);
+                doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
+                doc.setTextColor(30, 30, 30); // force dark — never faded
                 const clean = text.replace(/^[•\-\s]+/, "");
                 const wrapped = doc.splitTextToSize("• "+clean, CW);
                 if (y + wrapped.length*5.5 > H-22) { doc.addPage(); drawHeader(); y = 28; }
                 doc.text(wrapped, M, y);
                 y += wrapped.length*5.5 + 3;
               } else {
-                doc.setFontSize(9.5); doc.setTextColor(40,40,40);
+                doc.setFontSize(9.5);
                 doc.setFont("helvetica","normal");
+                doc.setTextColor(30, 30, 30); // force dark
                 const bulletW = doc.getTextWidth("• ");
                 doc.text("• ", M, y);
                 let x = M + bulletW;
                 segments.forEach(seg => {
                   if (!seg.text) return;
                   doc.setFont("helvetica", seg.bold?"bold":"normal");
+                  doc.setTextColor(30, 30, 30); // force dark on every segment
                   seg.text.split(/(\s+)/).forEach(token => {
                     if (!token) return;
                     const tw = doc.getTextWidth(token);

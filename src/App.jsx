@@ -45,8 +45,10 @@ export default function App() {
     propertyName: "", address: "",
     date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
   });
-  const [genNotes, setGenNotes] = useState([""]);
-  const [eqNotes, setEqNotes] = useState([""]);
+  const [genNotes, setGenNotes] = useState([]);
+  const [eqNotes, setEqNotes] = useState([]);
+  const [notesDocName, setNotesDocName] = useState("");
+  const [notesDocContent, setNotesDocContent] = useState("");
   const [excelData, setExcelData] = useState(null);
   const [excelFileName, setExcelFileName] = useState("");
   const [pptSlides, setPptSlides] = useState([]);
@@ -65,11 +67,28 @@ export default function App() {
   const [done, setDone] = useState(false);
 
   const logoRef = useRef(); const excelRef = useRef();
-  const pptRef = useRef(); const pdfRef = useRef();
+  const pptRef = useRef(); const pdfRef = useRef(); const wordRef = useRef();
 
   const handleLogo = useCallback(async (e) => {
     const file = e.target.files[0]; if (!file) return;
     setLogo(await readAsDataURL(file));
+  }, []);
+
+  const handleWordDoc = useCallback(async (file) => {
+    if (!file) return;
+    setNotesDocName(file.name);
+    try {
+      const mammoth = await import("https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js");
+      const ab = await readAsArrayBuffer(file);
+      const result = await mammoth.extractRawText({ arrayBuffer: ab });
+      setNotesDocContent(result.value);
+      // Parse into lines for PDF
+      const lines = result.value.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+      setGenNotes(lines);
+      setSections(p => p.map(s => s.id === "notes" ? { ...s, desc: `${file.name} · ${lines.length} lines` } : s));
+    } catch (err) {
+      alert("Could not read Word doc: " + err.message);
+    }
   }, []);
 
   const handleExcel = useCallback(async (e) => {
@@ -433,7 +452,7 @@ export default function App() {
           </div>
           <div style={{ marginTop: 28, paddingTop: 20, borderTop: "0.5px solid var(--color-border-tertiary)" }}>
             <p style={{ fontSize: 10, fontWeight: 600, color: "var(--color-text-tertiary)", margin: "0 0 10px", letterSpacing: "0.08em", textTransform: "uppercase" }}>This report</p>
-            {[["Property", info.propertyName || "—"], ["Excel", excelData ? "✓ uploaded" : "not yet"], ["PowerPoint", pptSlides.length ? `${pptSlides.length} slides` : "not yet"], ["Extra PDFs", extraPdfs.length ? `${extraPdfs.length} file(s)` : "none"]].map(([k, v]) => (
+            {[["Property", info.propertyName || "—"], ["Excel", excelData ? "✓ uploaded" : "not yet"], ["PowerPoint", pptSlides.length ? `${pptSlides.length} slides` : "not yet"], ["Notes doc", notesDocName || "none"], ["Extra PDFs", extraPdfs.length ? `${extraPdfs.length} file(s)` : "none"]].map(([k, v]) => (
               <div key={k} style={{ marginBottom: 5 }}>
                 <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{k}: </span>
                 <span style={{ fontSize: 11, color: "var(--color-text-secondary)", fontWeight: 500 }}>{v}</span>
@@ -476,27 +495,28 @@ export default function App() {
           {step === 1 && (
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>Notes & clarifications</h2>
-              <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>Leave blank to skip this section entirely</p>
-              <div style={{ marginBottom: 24 }}>
-                <p style={{ fontSize: 13, fontWeight: 500, margin: "0 0 10px" }}>General notes</p>
-                {genNotes.map((n, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <input style={inp} placeholder={`Note ${i + 1}…`} value={n} onChange={e => setGenNotes(p => p.map((v, j) => j === i ? e.target.value : v))} />
-                    {genNotes.length > 1 && <button onClick={() => setGenNotes(p => p.filter((_, j) => j !== i))} style={{ padding: "0 12px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "none", cursor: "pointer", fontSize: 18, color: "var(--color-text-secondary)" }}>×</button>}
-                  </div>
-                ))}
-                <button onClick={() => setGenNotes(p => [...p, ""])} style={{ fontSize: 13, color: "var(--color-text-info)", background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>+ Add note</button>
-              </div>
-              <div style={{ paddingTop: 20, borderTop: "0.5px solid var(--color-border-tertiary)" }}>
-                <p style={{ fontSize: 13, fontWeight: 500, margin: "0 0 10px" }}>Equipment clarifications / replacement reserves</p>
-                {eqNotes.map((n, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <input style={inp} placeholder={`Equipment note ${i + 1}…`} value={n} onChange={e => setEqNotes(p => p.map((v, j) => j === i ? e.target.value : v))} />
-                    {eqNotes.length > 1 && <button onClick={() => setEqNotes(p => p.filter((_, j) => j !== i))} style={{ padding: "0 12px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, background: "none", cursor: "pointer", fontSize: 18, color: "var(--color-text-secondary)" }}>×</button>}
-                  </div>
-                ))}
-                <button onClick={() => setEqNotes(p => [...p, ""])} style={{ fontSize: 13, color: "var(--color-text-info)", background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>+ Add equipment note</button>
-              </div>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 22px" }}>Upload your Word document — the text will be pulled in automatically. Skip this step if you have no notes.</p>
+              <input ref={wordRef} type="file" accept=".docx,.doc" style={{ display: "none" }} onChange={e => handleWordDoc(e.target.files[0])} />
+              {!notesDocName
+                ? <DropZone icon="📝" text="Click to upload your Word notes document (.docx)" onClick={() => wordRef.current.click()} onDrop={files => handleWordDoc(files[0])} />
+                : <div style={{ padding: "16px 20px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 10, background: "var(--color-background-secondary)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 22 }}>📝</span>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{notesDocName}</p>
+                          <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>{genNotes.length} lines extracted</p>
+                        </div>
+                      </div>
+                      <button onClick={() => { setNotesDocName(""); setNotesDocContent(""); setGenNotes([]); wordRef.current.value = ""; }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
+                    </div>
+                    <div style={{ maxHeight: 200, overflowY: "auto", padding: "10px 14px", background: "var(--color-background-primary)", borderRadius: 8, border: "0.5px solid var(--color-border-tertiary)" }}>
+                      {genNotes.slice(0, 20).map((line, i) => (
+                        <p key={i} style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: "0 0 6px", lineHeight: 1.5 }}>• {line}</p>
+                      ))}
+                      {genNotes.length > 20 && <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", margin: 0 }}>…and {genNotes.length - 20} more lines</p>}
+                    </div>
+                  </div>}
             </div>
           )}
 
@@ -602,7 +622,7 @@ export default function App() {
               <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px" }}>Generate report</h2>
               <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 20px" }}>Everything is ready — click to build your PDF</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
-                {[["Property", info.propertyName || "—"], ["Address", info.address || "—"], ["Date", info.date], ["General notes", genNotes.filter(n=>n.trim()).length + " item(s)"], ["Equipment notes", eqNotes.filter(n=>n.trim()).length + " item(s)"], ["Excel", excelData ? `${excelData.rows.length} rows · ${excelFileName}` : "Not uploaded"], ["Photos", pptSlides.length ? `${pptSlides.length} photos` : "Not uploaded"], ["Extra PDFs", extraPdfs.length ? `${extraPdfs.length} file(s)` : "None"]].map(([k, v]) => (
+                {[["Property", info.propertyName || "—"], ["Address", info.address || "—"], ["Date", info.date], ["Notes doc", notesDocName || "Not uploaded"], ["Excel", excelData ? `${excelData.rows.length} rows · ${excelFileName}` : "Not uploaded"], ["Photos", pptSlides.length ? `${pptSlides.length} photos` : "Not uploaded"], ["Extra PDFs", extraPdfs.length ? `${extraPdfs.length} file(s)` : "None"]].map(([k, v]) => (
                   <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 14px", background: "var(--color-background-secondary)", borderRadius: 8, border: "0.5px solid var(--color-border-tertiary)", gap: 12 }}>
                     <span style={{ fontSize: 13, color: "var(--color-text-secondary)", flexShrink: 0 }}>{k}</span>
                     <span style={{ fontSize: 13, fontWeight: 500, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v}</span>

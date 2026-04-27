@@ -852,5 +852,3 @@ function App() {
 export default function WrappedApp() {
   return <ErrorBoundary><App /></ErrorBoundary>;
 }
-ENDOFFILE
-echo "done - $(wc -l < /home/claude/App.jsx) lines"

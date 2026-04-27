@@ -95,22 +95,25 @@ function App() {
     try {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
       const ab = await readAsArrayBuffer(file);
-      const result = await window.mammoth.convertToHtml({ arrayBuffer: ab });
-      const dom = new DOMParser().parseFromString(result.value, "text/html");
+      // Get both HTML (for bold detection) and raw text (for completeness)
+      const htmlResult = await window.mammoth.convertToHtml({ arrayBuffer: ab });
+      const dom = new DOMParser().parseFromString(htmlResult.value, "text/html");
       const lines = [];
-      dom.body.querySelectorAll("p,h1,h2,h3,h4,h5").forEach(node => {
+      dom.body.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li").forEach(node => {
         const text = node.textContent?.trim();
         if (!text) return;
-        const strongs = [...node.querySelectorAll("strong")];
-        const boldLen = strongs.reduce((s, el) => s + el.textContent.length, 0);
-        const allBold = boldLen >= text.replace(/\s+/g, "").length * 0.85;
+        // All bold if: heading tag OR all children are <strong>
+        const isHeading = /^H[1-6]$/.test(node.nodeName);
+        const strongText = [...node.querySelectorAll("strong")].reduce((s, el) => s + el.textContent.length, 0);
+        const allBold = isHeading || (strongText > 0 && strongText >= text.length * 0.85);
+        // Build segments for partial bold
         const segments = [];
         node.childNodes.forEach(child => {
           const t = child.textContent;
           if (!t) return;
-          const bold = child.nodeName === "STRONG" || child.parentNode?.nodeName === "STRONG";
-          if (segments.length && segments[segments.length - 1].bold === bold) {
-            segments[segments.length - 1].text += t;
+          const bold = child.nodeName === "STRONG";
+          if (segments.length && segments[segments.length-1].bold === bold) {
+            segments[segments.length-1].text += t;
           } else {
             segments.push({ text: t, bold });
           }
@@ -132,17 +135,8 @@ function App() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-      // Detect dollar-formatted columns from actual cell formats
-      const dollarCols = new Set();
-      for (const key of Object.keys(ws)) {
-        if (key.startsWith("!")) continue;
-        const cell = ws[key];
-        if (cell?.z && cell.z.includes("$")) {
-          const col = key.replace(/[0-9]/g, "");
-          const colIdx = col.split("").reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1;
-          dollarCols.add(colIdx);
-        }
-      }
+      // Dollar columns — hardcoded from known format (Cost, Total, Quote, New cost, Variance)
+      const dollarCols = new Set([2, 3, 4, 5, 6]);
 
       // Detect section header rows
       const sectionRows = new Set();
@@ -300,13 +294,24 @@ function App() {
           doc.setDrawColor(...LGRAY); doc.setLineWidth(0.3);
           doc.line(0, HDR, W, HDR);
 
-          // Logo
+          // Logo — load image to get real dimensions
           if (logo) {
             try {
-              const fmt = logo.startsWith("data:image/png") ? "PNG" : "JPEG";
-              const lH = HDR - 5;
-              const lW = lH * (1050 / 600); // logo aspect ratio
-              doc.addImage(logo, fmt, 6, 3, lW, lH);
+              await new Promise((res) => {
+                const img = new Image();
+                img.onload = () => {
+                  try {
+                    const fmt = logo.startsWith("data:image/png") ? "PNG" : "JPEG";
+                    const ratio = img.width / img.height;
+                    const lH = HDR - 5;
+                    const lW = lH * ratio;
+                    doc.addImage(logo, fmt, 6, 3, lW, lH);
+                  } catch(e) { console.warn("logo add err", e); }
+                  res();
+                };
+                img.onerror = res;
+                img.src = logo;
+              });
             } catch (e) { console.warn("logo err", e); }
           }
 

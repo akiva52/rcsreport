@@ -216,7 +216,7 @@ export default function App() {
           const startY = hdrH + 22;
 
           // Report label
-          doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(136, 135, 128);
+          doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(200, 198, 192);
           doc.text("RESERVE REVIEW & ADVISORY REPORT", W / 2, startY, { align: "center" });
 
           // Main title
@@ -224,28 +224,28 @@ export default function App() {
           doc.text("PCNA & Capital Reserve Advisory", W / 2, startY + 14, { align: "center" });
 
           // Short divider
-          doc.setDrawColor(136, 135, 128); doc.setLineWidth(0.3);
+          doc.setDrawColor(180, 178, 169); doc.setLineWidth(0.3);
           doc.line(W/2 - 16, startY + 20, W/2 + 16, startY + 20);
 
           // Subtitle
-          doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(180, 178, 169);
+          doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(215, 213, 207);
           doc.text("Property Condition Needs Assessment", W / 2, startY + 28, { align: "center" });
           doc.text("Replacement Reserve Schedule", W / 2, startY + 35, { align: "center" });
 
           // Property card box
           const cardY = startY + 46;
           const cardH = 38;
-          doc.setDrawColor(160, 156, 150); doc.setLineWidth(0.2);
+          doc.setDrawColor(180, 178, 169); doc.setLineWidth(0.2);
           doc.setFillColor(0, 0, 0, 0.1);
           doc.roundedRect(M, cardY, CW, cardH, 1, 1, "S");
 
           let ry = cardY + 9;
           [["PROPERTY", info.propertyName || "—", true], ["LOCATION", info.address || "—", false], ["DATE", info.date, false]].forEach(([k, v, bold]) => {
-            doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(136, 135, 128);
+            doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(200, 198, 192);
             doc.text(k, M + 6, ry);
             doc.setFont("helvetica", bold ? "bold" : "normal");
             doc.setFontSize(bold ? 10.5 : 9.5);
-            doc.setTextColor(bold ? 241 : 210, bold ? 239 : 207, bold ? 232 : 205);
+            doc.setTextColor(bold ? 241 : 225, bold ? 239 : 223, bold ? 232 : 218);
             const lines = doc.splitTextToSize(v, CW - 36);
             doc.text(lines, M + 30, ry);
             ry += 11;
@@ -253,15 +253,15 @@ export default function App() {
 
           // Footer divider
           const ftY = H - 26;
-          doc.setDrawColor(160, 156, 150); doc.setLineWidth(0.2);
+          doc.setDrawColor(180, 178, 169); doc.setLineWidth(0.2);
           doc.line(0, ftY, W, ftY);
 
           // Prepared by footer
-          doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(136, 135, 128);
+          doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(200, 198, 192);
           doc.text("Prepared by", W / 2, ftY + 7, { align: "center" });
           doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(241, 239, 232);
           doc.text("Roselle Creative Solutions", W / 2, ftY + 15, { align: "center" });
-          doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(136, 135, 128);
+          doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(200, 198, 192);
           doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W / 2, ftY + 22, { align: "center" });
 
         } else if (sec.id === "notes") {
@@ -417,10 +417,10 @@ export default function App() {
         const mPt = M * 2.835;
         const lineY = 24;
         page.drawLine({ start: { x: mPt, y: lineY }, end: { x: width - mPt, y: lineY }, thickness: 0.4, color: rgb(0.53, 0.53, 0.5) });
-        const leftText = "Roselle Creative Solutions";
-        const rightText = `Page ${pageNum} of ${nonCoverTotal}`;
+        const leftText = `Page ${pageNum} of ${nonCoverTotal}`;
+        const rightText = "Roselle Creative Solutions";
         const fs = 7;
-        page.drawText(leftText, { x: width / 2 - font.widthOfTextAtSize(leftText, fs) / 2, y: 14, size: fs, font, color: rgb(0.53, 0.53, 0.5) });
+        page.drawText(leftText, { x: mPt, y: 14, size: fs, font, color: rgb(0.53, 0.53, 0.5) });
         page.drawText(rightText, { x: width - mPt - font.widthOfTextAtSize(rightText, fs), y: 14, size: fs, font, color: rgb(0.53, 0.53, 0.5) });
       });
 

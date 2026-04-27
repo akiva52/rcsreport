@@ -78,11 +78,10 @@ export default function App() {
     if (!file) return;
     setNotesDocName(file.name);
     try {
-      const mammoth = await import("https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js");
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
       const ab = await readAsArrayBuffer(file);
-      const result = await mammoth.extractRawText({ arrayBuffer: ab });
+      const result = await window.mammoth.extractRawText({ arrayBuffer: ab });
       setNotesDocContent(result.value);
-      // Parse into lines for PDF
       const lines = result.value.split("\n").map(l => l.trim()).filter(l => l.length > 0);
       setGenNotes(lines);
       setSections(p => p.map(s => s.id === "notes" ? { ...s, desc: `${file.name} · ${lines.length} lines` } : s));

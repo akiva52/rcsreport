@@ -251,75 +251,68 @@ function App() {
           // Dark background
           doc.setFillColor(...DARK); doc.rect(0, 0, W, H, "F");
 
-          // Top header area — logo left, contact info right
+          // ── Header band ──
+          const HDR = 22;
+          // Logo top-left
           const activeLogo = logo || ROSELLE_LOGO;
           const activeLogoW = logo ? logoDims.w : ROSELLE_LOGO_W;
           const activeLogoH = logo ? logoDims.h : ROSELLE_LOGO_H;
           try {
             const fmt = activeLogo.startsWith("data:image/png") ? "PNG" : "JPEG";
-            const lH = 18; const lW = lH * (activeLogoW / activeLogoH);
-            doc.addImage(activeLogo, fmt, M, 10, lW, lH);
+            const lH = HDR - 6;
+            const lW = lH * (activeLogoW / activeLogoH);
+            doc.addImage(activeLogo, fmt, 8, 4, lW, lH);
           } catch(e) { console.warn(e); }
 
-          // Contact info top right
-          doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(180,178,170);
-          doc.text("79 Roselle Court  ·  Lakewood, NJ 08701", W-M, 13, { align:"right" });
-          doc.text("Office@rosellecs.com  ·  732-496-6029", W-M, 20, { align:"right" });
+          // Contact info top-right
+          doc.setFont("helvetica","normal"); doc.setFontSize(6.5); doc.setTextColor(171, 169, 163);
+          doc.text("79 Roselle Court  ·  Lakewood, NJ 08701", W-M, 10, { align:"right" });
+          doc.text("Office@rosellecs.com  ·  732-496-6029", W-M, 16, { align:"right" });
 
-          // Header bottom line
-          doc.setDrawColor(120,118,115); doc.setLineWidth(0.3);
-          doc.line(0, 30, W, 30);
+          // Header bottom border
+          doc.setDrawColor(100, 98, 95); doc.setLineWidth(0.3);
+          doc.line(0, HDR, W, HDR);
 
-          // Subtle geometric rectangles
-          doc.setDrawColor(150,148,144); doc.setLineWidth(0.3);
-          doc.rect(M-2, 50, 55, 50);
-          doc.rect(M+8, 60, 35, 35);
-          doc.rect(W-M-60, H-170, 58, 52);
-          doc.rect(W-M-46, H-158, 38, 36);
+          // ── Main content ──
+          const startY = HDR + 22;
+          doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(171, 169, 163);
+          doc.text("RESERVE REVIEW & ADVISORY REPORT", W/2, startY, { align:"center" });
 
-          // Report label
-          doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(180,178,170);
-          doc.text("RESERVE REVIEW & ADVISORY REPORT", M+28, 60);
-
-          // Main title
           doc.setFont("helvetica","bold"); doc.setFontSize(26); doc.setTextColor(...WHITE);
-          const titleLines = doc.splitTextToSize("PCNA & Capital Reserve Advisory", CW - 20);
-          doc.text(titleLines, M+28, 78);
-          const titleH = titleLines.length * 10;
+          const titleLines = doc.splitTextToSize("PCNA & Capital Reserve Advisory", CW - 10);
+          doc.text(titleLines, W/2, startY+14, { align:"center" });
 
-          // Divider
-          const divY = 78 + titleH + 2;
+          const afterTitle = startY + 14 + (titleLines.length - 1) * 10;
           doc.setDrawColor(160,158,154); doc.setLineWidth(0.4);
-          doc.line(M+28, divY, M+28+50, divY);
+          doc.line(W/2-20, afterTitle+6, W/2+20, afterTitle+6);
 
-          // Subtitles
           doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(200,198,192);
-          doc.text("Property Condition Needs Assessment", M+28, divY+10);
-          doc.text("Replacement Reserve Schedule", M+28, divY+18);
+          doc.text("Property Condition Needs Assessment", W/2, afterTitle+14, { align:"center" });
+          doc.text("Replacement Reserve Schedule", W/2, afterTitle+21, { align:"center" });
 
-          // Property card
-          const cY = divY + 32;
+          // ── Property card ──
+          const cY = afterTitle + 34;
           doc.setDrawColor(150,148,144); doc.setLineWidth(0.3);
-          doc.roundedRect(M+16, cY, CW-16, 44, 1, 1, "S");
-          let ry = cY+12;
+          doc.roundedRect(M, cY, CW, 44, 1, 1, "S");
+          let ry = cY + 12;
           [["PROPERTY", info.propertyName||"—", true],["LOCATION", info.address||"—", false],["DATE", info.date, false]].forEach(([k,v,bold]) => {
-            doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(170,168,162);
-            doc.text(k, M+24, ry);
-            doc.setFont("helvetica", bold?"bold":"normal"); doc.setFontSize(bold?10:9);
-            doc.setTextColor(bold?241:210, bold?239:207, bold?232:205);
-            doc.text(doc.splitTextToSize(v, CW-56), M+50, ry);
+            doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(171,169,163);
+            doc.text(k, M+6, ry);
+            doc.setFont("helvetica", bold?"bold":"normal"); doc.setFontSize(bold?11:9.5);
+            doc.setTextColor(bold?241:215, bold?239:213, bold?232:207);
+            doc.text(doc.splitTextToSize(v, CW-36), M+32, ry);
             ry += 13;
           });
 
-          // Footer
+          // ── Footer ──
           const fY = H-26;
           doc.setDrawColor(130,128,124); doc.setLineWidth(0.2);
           doc.line(M, fY, W-M, fY);
-          doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(170,168,162);
+          doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(171,169,163);
           doc.text("Prepared by", W/2, fY+8, { align:"center" });
           doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(...WHITE);
           doc.text("Roselle Creative Solutions", W/2, fY+16, { align:"center" });
-          doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(170,168,162);
+          doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(171,169,163);
           doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W/2, fY+23, { align:"center" });
 
         // ── NOTES ──
@@ -333,6 +326,8 @@ function App() {
             doc.setFillColor(...DARK); doc.rect(0, 0, W, 20, "F");
             doc.setTextColor(...WHITE); doc.setFont("helvetica","bold"); doc.setFontSize(11);
             doc.text("Clarifications & Property Notes", W/2, 13, { align: "center" });
+            doc.setTextColor(30, 30, 30); // always reset to dark after header
+            doc.setFont("helvetica", "normal");
           };
           drawHeader();
           let y = 28;

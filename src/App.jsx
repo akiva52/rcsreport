@@ -377,14 +377,14 @@ function App() {
             headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold", fontSize: 8.5, cellPadding:{ top:4, bottom:4, left:3, right:3 } },
             alternateRowStyles: { fillColor: [247,246,243] },
             columnStyles: {
-              0: { cellWidth: 52 },
-              1: { halign: "right", cellWidth: 14 },
-              2: { halign: "right", cellWidth: 22 },
-              3: { halign: "right", cellWidth: 20 },
-              4: { halign: "right", cellWidth: 18 },
-              5: { halign: "right", cellWidth: 22 },
-              6: { halign: "right", cellWidth: 22 },
-              7: { cellWidth: "auto" },
+              0: { cellWidth: 34.7 },
+              1: { halign: "right", cellWidth: 19.1 },
+              2: { halign: "right", cellWidth: 22.0 },
+              3: { halign: "right", cellWidth: 19.6 },
+              4: { halign: "right", cellWidth: 17.6 },
+              5: { halign: "right", cellWidth: 20.7 },
+              6: { halign: "right", cellWidth: 24.2 },
+              7: { cellWidth: 30.1 },
             },
             didParseCell: data => {
               if (data.section === "body" && sectionRows.has(data.row.index)) {

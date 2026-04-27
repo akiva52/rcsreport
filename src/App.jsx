@@ -103,7 +103,9 @@ function App() {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
       const ab = await readAsArrayBuffer(file);
       const result = await window.mammoth.convertToHtml({ arrayBuffer: ab });
-      const dom = new DOMParser().parseFromString(result.value, "text/html");
+      // Strip all inline styles/colors from the HTML so nothing appears faded
+      const cleanHtml = result.value.replace(/style="[^"]*"/gi, "").replace(/color:[^;";]*/gi, "");
+      const dom = new DOMParser().parseFromString(cleanHtml, "text/html");
       const lines = [];
       dom.body.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li").forEach(node => {
         const text = node.textContent?.trim();
@@ -377,14 +379,14 @@ function App() {
             headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold", fontSize: 8.5, cellPadding:{ top:4, bottom:4, left:3, right:3 } },
             alternateRowStyles: { fillColor: [247,246,243] },
             columnStyles: {
-              0: { cellWidth: 34.7 },
-              1: { halign: "right", cellWidth: 19.1 },
+              0: { cellWidth: 32.0 },
+              1: { halign: "right", cellWidth: 13.0 },
               2: { halign: "right", cellWidth: 22.0 },
-              3: { halign: "right", cellWidth: 19.6 },
-              4: { halign: "right", cellWidth: 17.6 },
-              5: { halign: "right", cellWidth: 20.7 },
-              6: { halign: "right", cellWidth: 24.2 },
-              7: { cellWidth: 30.1 },
+              3: { halign: "right", cellWidth: 26.0 },
+              4: { halign: "right", cellWidth: 20.0 },
+              5: { halign: "right", cellWidth: 24.0 },
+              6: { halign: "right", cellWidth: 24.0 },
+              7: { cellWidth: 26.9 },
             },
             didParseCell: data => {
               if (data.section === "body" && sectionRows.has(data.row.index)) {

@@ -23,7 +23,7 @@ const inp = { width: "100%", padding: "9px 12px", border: "0.5px solid var(--col
 const lbl = { display: "block", fontSize: "12px", fontWeight: "500", color: "var(--color-text-secondary)", marginBottom: "6px" };
 
 const DropZone = ({ icon, text, onClick, onDrop }) => {
-  const [over, setOver] = React.useState(false);
+  const [over, setOver] = useState(false);
   return (
     <div
       onClick={onClick}
@@ -631,4 +631,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback } from "react";
 
 const loadScript = (src) => new Promise((resolve, reject) => {
@@ -23,14 +22,21 @@ const STEPS = ["Property info", "Notes", "Upload files", "Extra PDFs", "Arrange 
 const inp = { width: "100%", padding: "9px 12px", border: "0.5px solid var(--color-border-secondary)", borderRadius: "var(--border-radius-md)", fontSize: "14px", color: "var(--color-text-primary)", background: "var(--color-background-primary)", boxSizing: "border-box", fontFamily: "var(--font-sans)", outline: "none" };
 const lbl = { display: "block", fontSize: "12px", fontWeight: "500", color: "var(--color-text-secondary)", marginBottom: "6px" };
 
-const DropZone = ({ icon, text, onClick }) => (
-  <div onClick={onClick} style={{ padding: "28px", border: "1px dashed var(--color-border-secondary)", borderRadius: 10, cursor: "pointer", textAlign: "center", background: "var(--color-background-secondary)", transition: "all 0.15s" }}
-    onMouseEnter={e => { e.currentTarget.style.borderColor = "#185FA5"; e.currentTarget.style.background = "var(--color-background-info)"; }}
-    onMouseLeave={e => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.background = "var(--color-background-secondary)"; }}>
-    <div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>
-    <p style={{ fontSize: 13, margin: 0, color: "var(--color-text-secondary)" }}>{text}</p>
-  </div>
-);
+const DropZone = ({ icon, text, onClick, onDrop }) => {
+  const [over, setOver] = React.useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onDragOver={e => { e.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={e => { e.preventDefault(); setOver(false); if (onDrop) onDrop(e.dataTransfer.files); }}
+      style={{ padding: "28px", border: `1px dashed ${over ? "#185FA5" : "var(--color-border-secondary)"}`, borderRadius: 10, cursor: "pointer", textAlign: "center", background: over ? "var(--color-background-info)" : "var(--color-background-secondary)", transition: "all 0.15s" }}>
+      <div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>
+      <p style={{ fontSize: 13, margin: 0, color: "var(--color-text-secondary)" }}>{text}</p>
+      <p style={{ fontSize: 11, margin: "6px 0 0", color: "var(--color-text-tertiary)" }}>or drag &amp; drop here</p>
+    </div>
+  );
+};
 
 export default function App() {
   const [step, setStep] = useState(0);
@@ -505,7 +511,7 @@ export default function App() {
               <div style={{ marginBottom: 20 }}>
                 <label style={lbl}>Excel file — pricing spreadsheet</label>
                 {!excelData
-                  ? <DropZone icon="📊" text="Click to upload .xlsx / .xls / .csv" onClick={() => excelRef.current.click()} />
+                  ? <DropZone icon="📊" text="Click to upload .xlsx / .xls / .csv" onClick={() => excelRef.current.click()} onDrop={files => { const f = files[0]; if (f) { const e = { target: { files } }; handleExcel(e); } }} />
                   : <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 10, background: "var(--color-background-secondary)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <span style={{ fontSize: 22 }}>📊</span>
@@ -521,7 +527,7 @@ export default function App() {
               <div>
                 <label style={lbl}>PowerPoint — product photos (images extracted automatically)</label>
                 {!pptSlides.length
-                  ? <DropZone icon="🖼️" text="Click to upload .pptx — your screenshots are pulled out automatically" onClick={() => pptRef.current.click()} />
+                  ? <DropZone icon="🖼️" text="Click to upload .pptx — your screenshots are pulled out automatically" onClick={() => pptRef.current.click()} onDrop={files => { const f = files[0]; if (f) handlePPT({ target: { files } }); }} />
                   : <div style={{ padding: "12px 16px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 10, background: "var(--color-background-secondary)" }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -547,7 +553,7 @@ export default function App() {
               <input ref={pdfRef} type="file" accept=".pdf" multiple style={{ display: "none" }} onChange={e => handleExtraPdfs(e.target.files)} />
               <button className="rb" onClick={() => pdfRef.current.click()} style={{ padding: "10px 20px", background: "var(--color-background-secondary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 8, fontSize: 13, cursor: "pointer", marginBottom: 16, color: "var(--color-text-primary)" }}>+ Upload PDF(s)</button>
               {!extraPdfs.length
-                ? <DropZone icon="📎" text="Or click above to add PDFs — you can skip this step" onClick={() => pdfRef.current.click()} />
+                ? <DropZone icon="📎" text="Or click above to add PDFs — you can skip this step" onClick={() => pdfRef.current.click()} onDrop={files => handleExtraPdfs(files)} />
                 : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {extraPdfs.map((f, i) => (
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 8, background: "var(--color-background-secondary)" }}>
@@ -625,3 +631,4 @@ export default function App() {
     </div>
   );
 }
+

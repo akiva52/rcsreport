@@ -69,6 +69,8 @@ export default function App() {
 
   const logoRef = useRef(); const excelRef = useRef();
   const pptRef = useRef(); const pdfRef = useRef(); const wordRef = useRef();
+  const pdfDataRef = useRef({}); // store binary PDF data outside React state
+  const slidesDataRef = useRef([]); // store slide images outside React state
 
   const handleLogo = useCallback(async (e) => {
     const file = e.target.files[0]; if (!file) return;
@@ -131,7 +133,8 @@ export default function App() {
         const blob = await zip.files[path].async("blob");
         return { dataUrl: await readAsDataURL(blob), name: path.split("/").pop() };
       }));
-      setPptSlides(slides);
+      slidesDataRef.current = slides; // store images in ref
+      setPptSlides(slides.map(s => ({ name: s.name }))); // only metadata in state
       setSections(p => p.map(s => s.id === "photos" ? { ...s, desc: `${slides.length} photos · ${Math.ceil(slides.length / 2)} pages` } : s));
     } catch (err) { alert("Could not read PowerPoint: " + err.message); }
   }, []);
@@ -140,13 +143,16 @@ export default function App() {
     const arr = Array.from(files).filter(f => f.name.endsWith(".pdf"));
     const loaded = await Promise.all(arr.map(async f => {
       const id = "pdf_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-      return { id, name: f.name, arrayBuffer: await readAsArrayBuffer(f) };
+      const ab = await readAsArrayBuffer(f);
+      pdfDataRef.current[id] = ab; // store binary in ref, not state
+      return { id, name: f.name };
     }));
     setExtraPdfs(p => [...p, ...loaded]);
-    setSections(p => [...p, ...loaded.map(f => ({ id: f.id, label: f.name, icon: "📎", color: "#C04B00", desc: "Extra PDF", isPdf: true, pdfData: f.arrayBuffer }))]);
+    setSections(p => [...p, ...loaded.map(f => ({ id: f.id, label: f.name, icon: "📎", color: "#C04B00", desc: "Extra PDF", isPdf: true }))]);
   }, []);
 
   const removeExtraPdf = (id) => {
+    delete pdfDataRef.current[id];
     setExtraPdfs(p => p.filter(f => f.id !== id));
     setSections(p => p.filter(s => s.id !== id));
   };
@@ -351,8 +357,9 @@ export default function App() {
             const slot = i % 2;
             const yImg = hdrH2 + 2 + slot * slotH;
             try {
-              const fmt = pptSlides[i].dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
-              doc.addImage(pptSlides[i].dataUrl, fmt, M, yImg, CW, imgH, undefined, "FAST");
+              const slide = slidesDataRef.current[i];
+              const fmt = slide.dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
+              doc.addImage(slide.dataUrl, fmt, M, yImg, CW, imgH, undefined, "FAST");
             } catch {
               doc.setFillColor(220, 218, 210); doc.rect(M, yImg, CW, imgH, "F");
               doc.setTextColor(136, 135, 128); doc.setFontSize(9);
@@ -384,7 +391,7 @@ export default function App() {
 
       for (const sec of sections) {
         if (sec.isPdf) {
-          const extDoc = await PDFDocument.load(sec.pdfData);
+          const extDoc = await PDFDocument.load(pdfDataRef.current[sec.id]);
           const count = extDoc.getPageCount();
           const copied = await finalDoc.copyPages(extDoc, [...Array(count).keys()]);
           copied.forEach(p => { finalDoc.addPage(p); totalAdded++; });
@@ -592,7 +599,7 @@ export default function App() {
                         <button onClick={() => { setPptSlides([]); setPptFileName(""); setSections(p => p.map(s => s.id === "photos" ? { ...s, desc: "Not uploaded yet" } : s)); pptRef.current.value = ""; }} style={{ fontSize: 12, color: "var(--color-text-secondary)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
                       </div>
                       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, maxHeight: 60 }}>
-                        {pptSlides.slice(0, 10).map((s, i) => <img key={i} src={s.dataUrl} alt="" style={{ height: 50, width: 70, objectFit: "cover", borderRadius: 4, flexShrink: 0, border: "0.5px solid var(--color-border-tertiary)" }} />)}
+                        {slidesDataRef.current.slice(0, 10).map((s, i) => <img key={i} src={s.dataUrl} alt="" style={{ height: 50, width: 70, objectFit: "cover", borderRadius: 4, flexShrink: 0, border: "0.5px solid var(--color-border-tertiary)" }} />)}
                         {pptSlides.length > 10 && <div style={{ height: 50, width: 70, borderRadius: 4, background: "var(--color-background-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>+{pptSlides.length - 10}</span></div>}
                       </div>
                     </div>}

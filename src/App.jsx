@@ -1,4 +1,19 @@
 import { useState, useRef, useCallback } from "react";
+import React from "react";
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(err) { return { error: err }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{ padding: 32, fontFamily: "monospace", background: "#fff0f0", border: "2px solid red", borderRadius: 8, margin: 16 }}>
+        <h2 style={{ color: "red", margin: "0 0 12px" }}>App Error — send this to Akiva</h2>
+        <pre style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{this.state.error.toString()}{"\n\n"}{this.state.error.stack}</pre>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 
 
 const loadScript = (src) => new Promise((resolve, reject) => {
@@ -39,7 +54,7 @@ const DropZone = ({ icon, text, onClick, onDrop }) => {
   );
 };
 
-export default function App() {
+function App() {
   const [step, setStep] = useState(0);
   const [logo, setLogo] = useState(null);
   const [info, setInfo] = useState({
@@ -49,7 +64,7 @@ export default function App() {
   const [genNotes, setGenNotes] = useState([]);
   const [eqNotes, setEqNotes] = useState([]);
   const [notesDocName, setNotesDocName] = useState("");
-  const [notesDocContent, setNotesDocContent] = useState("");
+
   const [excelData, setExcelData] = useState(null);
   const [excelFileName, setExcelFileName] = useState("");
   const [pptSlides, setPptSlides] = useState([]);
@@ -83,20 +98,25 @@ export default function App() {
     try {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
       const ab = await readAsArrayBuffer(file);
-      // Use convertToHtml to get bold info
       const result = await window.mammoth.convertToHtml({ arrayBuffer: ab });
-      const html = result.value;
-      // Parse html to extract lines with bold flag
       const parser = new DOMParser();
-      const htmlDoc = parser.parseFromString(html, "text/html");
+      const htmlDoc = parser.parseFromString(result.value, "text/html");
       const lines = [];
-      htmlDoc.body.childNodes.forEach(node => {
+      htmlDoc.body.querySelectorAll("p, h1, h2, h3, h4").forEach(node => {
         const text = node.textContent?.trim();
         if (!text) return;
-        const isBold = node.querySelector && (node.querySelector("strong") || node.nodeName === "STRONG");
-        // Check if entire paragraph is bold
-        const fullBold = isBold && node.textContent === node.querySelector?.("strong")?.textContent;
-        lines.push({ text, __bold: !!fullBold });
+        const strongs = node.querySelectorAll("strong");
+        const totalStrongLen = [...strongs].reduce((s, el) => s + el.textContent.length, 0);
+        const allBold = totalStrongLen >= text.length * 0.9;
+        // Build segments: array of {text, bold}
+        const segments = [];
+        node.childNodes.forEach(child => {
+          const t = child.textContent;
+          if (!t) return;
+          const b = child.nodeName === "STRONG" || (child.parentNode?.nodeName === "STRONG");
+          segments.push({ text: t, bold: b });
+        });
+        lines.push({ text, allBold, segments });
       });
       setGenNotes(lines);
       setSections(p => p.map(s => s.id === "notes" ? { ...s, desc: `${file.name} · ${lines.length} lines` } : s));
@@ -271,8 +291,8 @@ export default function App() {
           doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W / 2, ftY + 22, { align: "center" });
 
         } else if (sec.id === "notes") {
-          const vg = genNotes.filter(n => (n.text || n).toString().trim());
-          const ve = eqNotes.filter(n => (n.text || n).toString().trim());
+          const vg = genNotes.filter(n => n && (n.text || n).toString().trim());
+          const ve = [];
           if (!vg.length && !ve.length) continue;
           setGenStatus("Building notes page...");
           doc.addPage();
@@ -283,26 +303,50 @@ export default function App() {
           doc.text("Clarifications & Property Notes", W / 2, 14, { align: "center" });
 
           let y = 32;
-          // Render notes: bold lines = section headers, others = bullet points
+          // Render notes with proper bold handling
           const allNotes = [...vg, ...ve];
+          const addNotesHeader = () => {
+            doc.setFillColor(89, 83, 85); doc.rect(0, 0, W, 22, "F");
+            doc.setTextColor(241, 239, 232); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+            doc.text("Clarifications & Property Notes", W / 2, 14, { align: "center" });
+          };
           allNotes.forEach(line => {
-            if (y > H - 28) { doc.addPage(); y = 28;
-              doc.setFillColor(89, 83, 85); doc.rect(0, 0, W, 22, "F");
-              doc.setTextColor(241, 239, 232); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
-              doc.text("Clarifications & Property Notes", W / 2, 14, { align: "center" });
-            }
-            const isBold = line.__bold;
-            if (isBold) {
+            const lineText = line.text || line;
+            const allBold = line.allBold || line.__bold;
+            if (y > H - 28) { doc.addPage(); y = 28; addNotesHeader(); }
+            if (allBold) {
+              // Full line bold = section header with underline
               y += 4;
-              doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(44, 44, 42);
-              doc.text(line.text || line, M, y); y += 2;
-              doc.setDrawColor(89, 83, 85); doc.setLineWidth(0.4);
+              doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(30, 30, 30);
+              doc.text(lineText, M, y); y += 2;
+              doc.setDrawColor(89, 83, 85); doc.setLineWidth(0.5);
               doc.line(M, y, W - M, y); y += 7;
+            } else if (line.segments && line.segments.some(s => s.bold)) {
+              // Partial bold — render word by word
+              const txt = lineText.replace(/^[•\s]+/, "");
+              doc.setFontSize(9.5); doc.setTextColor(60, 58, 56);
+              let x = M;
+              const bulletW = doc.getTextWidth("• ");
+              doc.setFont("helvetica", "normal");
+              doc.text("• ", x, y); x += bulletW;
+              line.segments.forEach(seg => {
+                if (!seg.text) return;
+                doc.setFont("helvetica", seg.bold ? "bold" : "normal");
+                const words = seg.text.split(/(\s+)/);
+                words.forEach(word => {
+                  if (!word) return;
+                  const ww = doc.getTextWidth(word);
+                  if (x + ww > W - M) { y += 5.5; x = M + bulletW; }
+                  doc.text(word, x, y); x += ww;
+                });
+              });
+              y += 7;
             } else {
+              // Regular bullet point
               doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(60, 58, 56);
-              const txt = (line.text || line).replace(/^[•\-\s]+/, "");
-              const lines = doc.splitTextToSize("• " + txt, CW);
-              doc.text(lines, M, y); y += lines.length * 5.5 + 3;
+              const txt = lineText.replace(/^[•\s]+/, "");
+              const wrappedLines = doc.splitTextToSize("• " + txt, CW);
+              doc.text(wrappedLines, M, y); y += wrappedLines.length * 5.5 + 3;
             }
           });
 
@@ -326,15 +370,26 @@ export default function App() {
             head: [excelData.rows[0].map(c => String(c ?? ""))],
             body: dataRows.map(row => row.map(c => { if (c === "" || c == null) return ""; if (typeof c === "number") return c.toLocaleString("en-US"); return String(c); })),
             startY: 26, margin: { left: M, right: M, bottom: 20 },
-            styles: { fontSize: 6.5, cellPadding: 1.8, overflow: "linebreak", textColor: [44, 44, 42] },
-            headStyles: { fillColor: [89, 83, 85], textColor: [241, 239, 232], fontStyle: "bold", fontSize: 7 },
-            alternateRowStyles: { fillColor: [245, 244, 240] },
+            styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", textColor: [44, 44, 42], lineColor: [210, 208, 200], lineWidth: 0.1 },
+            headStyles: { fillColor: [89, 83, 85], textColor: [241, 239, 232], fontStyle: "bold", fontSize: 8.5, cellPadding: 4 },
+            alternateRowStyles: { fillColor: [247, 246, 243] },
+            columnStyles: {
+              0: { cellWidth: 52 },
+              1: { halign: "right", cellWidth: 18 },
+              2: { halign: "right", cellWidth: 22 },
+              3: { halign: "right", cellWidth: 18 },
+              4: { halign: "right", cellWidth: 18 },
+              5: { halign: "right", cellWidth: 20 },
+              6: { halign: "right", cellWidth: 20 },
+              7: { cellWidth: "auto" },
+            },
             didParseCell: (data) => {
               if (data.section === "body" && sectionHeaderIndices.has(data.row.index)) {
                 data.cell.styles.fillColor = [89, 83, 85];
                 data.cell.styles.textColor = [241, 239, 232];
                 data.cell.styles.fontStyle = "bold";
-                data.cell.styles.fontSize = 7.5;
+                data.cell.styles.fontSize = 8.5;
+                data.cell.styles.halign = "left";
               }
             },
           });
@@ -342,28 +397,50 @@ export default function App() {
         } else if (sec.id === "photos") {
           if (!pptSlides.length) continue;
           setGenStatus(`Building photo pages... (${pptSlides.length} photos)`);
-          const hdrH2 = 16;
-          const slotH = (H - hdrH2 - 6) / 2;
-          const imgH = slotH - 2;
+          const hdrH2 = 14;
+          const maxImgW = CW;
+          const maxImgH = (H - hdrH2 - 10) / 2;
+          const gap = 2;
+
+          // Compress + get natural dimensions
+          const compressImage = (dataUrl) => new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement("canvas");
+              const scale = Math.min(1, 1200 / img.width);
+              canvas.width = Math.round(img.width * scale);
+              canvas.height = Math.round(img.height * scale);
+              canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve({ dataUrl: canvas.toDataURL("image/jpeg", 0.65), w: img.width, h: img.height });
+            };
+            img.onerror = () => resolve({ dataUrl, w: 4, h: 3 });
+            img.src = dataUrl;
+          });
 
           for (let i = 0; i < pptSlides.length; i++) {
             if (i % 2 === 0) {
               doc.addPage();
               if (i === 0) sectionPageMap["photos"] = doc.internal.getCurrentPageInfo().pageNumber;
               doc.setFillColor(89, 83, 85); doc.rect(0, 0, W, hdrH2, "F");
-              doc.setTextColor(241, 239, 232); doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-              doc.text("Supporting Documentation — Product Photos", W / 2, 10.5, { align: "center" });
+              doc.setTextColor(241, 239, 232); doc.setFont("helvetica", "bold"); doc.setFontSize(8);
+              doc.text("Supporting Documentation — Product Photos", W / 2, 9.5, { align: "center" });
             }
             const slot = i % 2;
-            const yImg = hdrH2 + 2 + slot * slotH;
+            const slotY = hdrH2 + 2 + slot * (maxImgH + gap);
+            const slide = slidesDataRef.current[i];
+            if (!slide) continue;
             try {
-              const slide = slidesDataRef.current[i];
-              const fmt = slide.dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
-              doc.addImage(slide.dataUrl, fmt, M, yImg, CW, imgH, undefined, "FAST");
-            } catch {
-              doc.setFillColor(220, 218, 210); doc.rect(M, yImg, CW, imgH, "F");
-              doc.setTextColor(136, 135, 128); doc.setFontSize(9);
-              doc.text(pptSlides[i].name, M + 4, yImg + 10);
+              const { dataUrl: cUrl, w: iW, h: iH } = await compressImage(slide.dataUrl);
+              // Maintain aspect ratio
+              const ratio = iW / iH;
+              let drawW = maxImgW;
+              let drawH = drawW / ratio;
+              if (drawH > maxImgH) { drawH = maxImgH; drawW = drawH * ratio; }
+              const xOff = M + (maxImgW - drawW) / 2;
+              const yOff = slotY + (maxImgH - drawH) / 2;
+              doc.addImage(cUrl, "JPEG", xOff, yOff, drawW, drawH);
+            } catch(e) {
+              doc.setFillColor(220, 218, 210); doc.rect(M, slotY, maxImgW, maxImgH, "F");
             }
           }
         }
@@ -692,4 +769,8 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+export default function WrappedApp() {
+  return <ErrorBoundary><App /></ErrorBoundary>;
 }

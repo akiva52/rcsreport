@@ -252,22 +252,22 @@ function App() {
           doc.setFillColor(...DARK); doc.rect(0, 0, W, H, "F");
 
           // ── Header band ──
-          const HDR = 22;
-          // Logo top-left
+          const HDR = 28;
+          // Logo top-left — bigger
           const activeLogo = logo || ROSELLE_LOGO;
           const activeLogoW = logo ? logoDims.w : ROSELLE_LOGO_W;
           const activeLogoH = logo ? logoDims.h : ROSELLE_LOGO_H;
           try {
             const fmt = activeLogo.startsWith("data:image/png") ? "PNG" : "JPEG";
-            const lH = HDR - 6;
+            const lH = HDR - 4;
             const lW = lH * (activeLogoW / activeLogoH);
-            doc.addImage(activeLogo, fmt, 8, 4, lW, lH);
+            doc.addImage(activeLogo, fmt, 8, 3, lW, lH);
           } catch(e) { console.warn(e); }
 
           // Contact info top-right
           doc.setFont("helvetica","normal"); doc.setFontSize(6.5); doc.setTextColor(171, 169, 163);
-          doc.text("79 Roselle Court  ·  Lakewood, NJ 08701", W-M, 10, { align:"right" });
-          doc.text("Office@rosellecs.com  ·  732-496-6029", W-M, 16, { align:"right" });
+          doc.text("79 Roselle Court  ·  Lakewood, NJ 08701", W-M, 12, { align:"right" });
+          doc.text("Office@rosellecs.com  ·  732-496-6029", W-M, 19, { align:"right" });
 
           // Header bottom border
           doc.setDrawColor(100, 98, 95); doc.setLineWidth(0.3);
@@ -304,16 +304,14 @@ function App() {
             ry += 13;
           });
 
-          // ── Footer ──
+          // ── Footer — just Roselle Creative Solutions ──
           const fY = H-26;
           doc.setDrawColor(130,128,124); doc.setLineWidth(0.2);
           doc.line(M, fY, W-M, fY);
           doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(171,169,163);
           doc.text("Prepared by", W/2, fY+8, { align:"center" });
-          doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(...WHITE);
-          doc.text("Roselle Creative Solutions", W/2, fY+16, { align:"center" });
-          doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(171,169,163);
-          doc.text("Akiva Jurkanski  ·  akiva@rosellecs.com  ·  732.606.3529", W/2, fY+23, { align:"center" });
+          doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(...WHITE);
+          doc.text("Roselle Creative Solutions", W/2, fY+18, { align:"center" });
 
         // ── NOTES ──
         } else if (sec.id === "notes") {

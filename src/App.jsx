@@ -84,11 +84,11 @@ function useData() {
         supaFetch("rcs_invoices?order=created_at.desc"),
       ]);
       setRaw({
-        buildings: buildings.map(b=>{...b, customFee:b.custom_fee, akivaPct:b.akiva_pct, akivaRate:b.akiva_rate, mileRate:b.mile_rate, createdAt:b.created_at}),
-        visits: visits.map(v=>{...v, buildingId:v.building_id}),
-        pcna: pcna.map(p=>{...p, buildingId:p.building_id, origRR:p.orig_rr, revRR:p.rev_rr, origMM:p.orig_mm, revMM:p.rev_mm}),
-        expenses: expenses.map(e=>{...e, buildingId:e.building_id}),
-        invoices: invoices.map(i=>{...i, buildingId:i.building_id, visitTotal:i.visit_total, expTotal:i.exp_total, savingsFee:i.savings_fee, akivaTotal:i.akiva_total, visitCount:i.visit_count, dateSent:i.date_sent, dateReceived:i.date_received}),
+        buildings: buildings.map(b=>({...b, customFee:b.custom_fee, akivaPct:b.akiva_pct, akivaRate:b.akiva_rate, mileRate:b.mile_rate, createdAt:b.created_at})),
+        visits: visits.map(v=>({...v, buildingId:v.building_id})),
+        pcna: pcna.map(p=>({...p, buildingId:p.building_id, origRR:p.orig_rr, revRR:p.rev_rr, origMM:p.orig_mm, revMM:p.rev_mm})),
+        expenses: expenses.map(e=>({...e, buildingId:e.building_id})),
+        invoices: invoices.map(i=>({...i, buildingId:i.building_id, visitTotal:i.visit_total, expTotal:i.exp_total, savingsFee:i.savings_fee, akivaTotal:i.akiva_total, visitCount:i.visit_count, dateSent:i.date_sent, dateReceived:i.date_received})),
       });
     } catch(e) {
       console.error("Load error:", e);

@@ -47,7 +47,7 @@ function genInvNum(invoices) {
 }
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
-const SUPA_URL = "https://tzgdxzajsshjmgdisza.supabase.co";
+const SUPA_URL = "https://tzgdxzajsshhjmgdisza.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6Z2R4emFqc3NoaGptZ2Rpc3phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NTAxNzIsImV4cCI6MjA5MzEyNjE3Mn0.RbBKgRhYG72TvofEIt0G97h2NN6o0KBdJ8FH9RaJy_4";
 
 async function supaFetch(path, method="GET", body=null) {

@@ -518,6 +518,13 @@ function App() {
           const SLOT_H = (H - HDR - 8) / 2;
           const MAX_H = SLOT_H - 2;
           const GAP = 4;
+          const TOP = HDR + 2;
+          const FOOT = 22/2.835 + 2;           // page footer rule sits 22pt up; keep captions clear of it
+          const FULL_H = H - FOOT - TOP;       // a captioned photo owns the whole content area
+          const CAP_SIZE = 10;                 // pt
+          const CAP_LH = CAP_SIZE * 0.3528 * 1.25;
+          const CAP_GAP = 4;
+          const CAP_LINES = 3;
 
           const compress = dataUrl => new Promise(res => {
             const img = new Image();
@@ -532,24 +539,65 @@ function App() {
             img.src = dataUrl;
           });
 
-          for (let i = 0; i < slidesRef.current.length; i++) {
-            if (i % 2 === 0) {
-              doc.addPage();
-              if (i === 0) sectionPageMap["photos"] = doc.internal.getCurrentPageInfo().pageNumber;
-              doc.setFillColor(...DARK); doc.rect(0, 0, W, HDR, "F");
-              doc.setTextColor(...WHITE); doc.setFont("helvetica","bold"); doc.setFontSize(8);
-              doc.text("Supporting Documentation — Product Photos", W/2, 9.5, { align: "center" });
-            }
-            const slot = i % 2;
-            const slotY = HDR + 2 + slot*(SLOT_H+GAP);
+          // wrap to the image width, at most CAP_LINES lines, ellipsis on the last
+          const wrapCaption = (text, width) => {
+            doc.setFont("helvetica","normal"); doc.setFontSize(CAP_SIZE);
+            const lines = doc.splitTextToSize(text, width);
+            if (lines.length <= CAP_LINES) return lines;
+            const kept = lines.slice(0, CAP_LINES);
+            let last = kept[CAP_LINES-1];
+            while (last && doc.getTextWidth(last + "…") > width) last = last.slice(0, -1);
+            kept[CAP_LINES-1] = last.replace(/\s+$/, "") + "…";
+            return kept;
+          };
+
+          const photoPage = first => {
+            doc.addPage();
+            if (first) sectionPageMap["photos"] = doc.internal.getCurrentPageInfo().pageNumber;
+            doc.setFillColor(...DARK); doc.rect(0, 0, W, HDR, "F");
+            doc.setTextColor(...WHITE); doc.setFont("helvetica","bold"); doc.setFontSize(8);
+            doc.text("Supporting Documentation — Product Photos", W/2, 9.5, { align: "center" });
+          };
+
+          // fit the image (and its caption, when it has one) into a box of height boxH at y = top
+          const drawPhoto = async (entry, top, boxH) => {
+            const caption = entry.caption || null;
             try {
-              const { url, w: iW, h: iH } = await compress(slidesRef.current[i].dataUrl);
+              const { url, w: iW, h: iH } = await compress(entry.dataUrl);
               const ratio = iW/iH;
-              let dW = CW, dH = dW/ratio;
-              if (dH > MAX_H) { dH = MAX_H; dW = dH*ratio; }
-              doc.addImage(url, "JPEG", M+(CW-dW)/2, slotY+(MAX_H-dH)/2, dW, dH);
+              const fit = room => { let dW = CW, dH = dW/ratio; if (dH > room) { dH = room; dW = dH*ratio; } return { dW, dH }; };
+              let dW, dH, lines = [];
+              if (caption) {
+                // first pass reserves the full three lines, second pass gives the space back
+                ({ dW } = fit(boxH - CAP_GAP - CAP_LINES*CAP_LH));
+                lines = wrapCaption(caption, dW);
+                ({ dW, dH } = fit(boxH - CAP_GAP - lines.length*CAP_LH));
+                lines = wrapCaption(caption, dW);
+              } else {
+                ({ dW, dH } = fit(boxH));
+              }
+              const blockH = dH + (lines.length ? CAP_GAP + lines.length*CAP_LH : 0);
+              const y = top + (boxH - blockH)/2;
+              doc.addImage(url, "JPEG", M+(CW-dW)/2, y, dW, dH);
+              if (lines.length) {
+                doc.setFont("helvetica","normal"); doc.setFontSize(CAP_SIZE); doc.setTextColor(60,60,58);
+                lines.forEach((ln, k) => doc.text(ln, W/2, y + dH + CAP_GAP + (k+0.8)*CAP_LH, { align: "center" }));
+              }
             } catch(e) {
-              doc.setFillColor(220,218,210); doc.rect(M, slotY, CW, MAX_H, "F");
+              doc.setFillColor(220,218,210); doc.rect(M, top, CW, boxH, "F");
+            }
+          };
+
+          // captioned photos take a page each; runs of uncaptioned photos still pack two per page
+          let slotsLeft = 0, started = false;
+          for (const entry of slidesRef.current) {
+            if (entry.caption) {
+              photoPage(!started); started = true; slotsLeft = 0;
+              await drawPhoto(entry, TOP, FULL_H);
+            } else {
+              if (slotsLeft === 0) { photoPage(!started); started = true; slotsLeft = 2; }
+              await drawPhoto(entry, TOP + (2 - slotsLeft)*(SLOT_H+GAP), MAX_H);
+              slotsLeft--;
             }
           }
         }
